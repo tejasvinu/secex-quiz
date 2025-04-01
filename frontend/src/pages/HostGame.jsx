@@ -6,6 +6,14 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
+// Create an axios instance with baseURL
+const axiosInstance = axios.create({
+    baseURL: import.meta.env.VITE_API_URL,
+    headers: {
+        'Content-Type': 'application/json'
+    }
+});
+
 export default function HostGame() {
     const { sessionId } = useParams();
     const location = useLocation();
@@ -15,21 +23,21 @@ export default function HostGame() {
     const [timeLeft, setTimeLeft] = useState(null);
     const [answeredPlayers, setAnsweredPlayers] = useState(new Set());
 
-    useEffect(() => {
-        const fetchGameState = async () => {
-            try {
-                const response = await axios.get(`http://localhost:5000/api/quiz/game/${sessionId}`);
-                setGameState(response.data);
-                if (response.data.status === 'playing' && timeLeft === null) {
-                    setTimeLeft(response.data.quiz.timePerQuestion);
-                }
-            } catch (error) {
-                toast.error('Failed to fetch game state');
-            } finally {
-                setLoading(false);
+    const fetchGameState = async () => {
+        try {
+            const response = await axiosInstance.get(`/api/quiz/game/${sessionId}`);
+            setGameState(response.data);
+            if (response.data.status === 'playing' && timeLeft === null) {
+                setTimeLeft(response.data.quiz.timePerQuestion);
             }
-        };
+        } catch (error) {
+            toast.error('Failed to fetch game state');
+        } finally {
+            setLoading(false);
+        }
+    };
 
+    useEffect(() => {
         fetchGameState();
         const interval = setInterval(fetchGameState, 5000); // Poll for new players
 
@@ -74,8 +82,8 @@ export default function HostGame() {
     const startGame = async () => {
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
-            await axios.post(
-                `http://localhost:5000/api/quiz/game/${sessionId}/start`,
+            await axiosInstance.post(
+                `/api/quiz/game/${sessionId}/start`,
                 {},
                 { headers: { Authorization: `Bearer ${token}` }}
             );
@@ -97,8 +105,8 @@ export default function HostGame() {
             // End game
             try {
                 const token = JSON.parse(localStorage.getItem('user')).token;
-                await axios.post(
-                    `http://localhost:5000/api/quiz/game/${sessionId}/end`,
+                await axiosInstance.post(
+                    `/api/quiz/game/${sessionId}/end`,
                     {},
                     { headers: { Authorization: `Bearer ${token}` }}
                 );
@@ -112,8 +120,8 @@ export default function HostGame() {
 
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
-            await axios.post(
-                `http://localhost:5000/api/quiz/game/${sessionId}/next-question`,
+            await axiosInstance.post(
+                `/api/quiz/game/${sessionId}/next-question`,
                 { questionIndex: nextQuestionIndex },
                 { headers: { Authorization: `Bearer ${token}` }}
             );

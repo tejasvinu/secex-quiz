@@ -4,6 +4,14 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
+// Create an axios instance with baseURL
+const axiosInstance = axios.create({
+    baseURL: import.meta.env.VITE_API_URL,
+    headers: {
+        'Content-Type': 'application/json'
+    }
+});
+
 export default function JoinGame() {
     const [code, setCode] = useState('');
     const [username, setUsername] = useState('');
@@ -25,7 +33,7 @@ export default function JoinGame() {
         setLoading(true);
 
         try {
-            const response = await axios.post('http://localhost:5000/api/quiz/join-game', {
+            const response = await axiosInstance.post('/api/quiz/join-game', {
                 code,
                 username
             });
@@ -93,6 +101,7 @@ export default function JoinGame() {
                                 bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2
                                 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200
                                 ${code.length !== 6 ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105'}`}
+
                         >
                             Next
                         </button>
@@ -138,6 +147,7 @@ export default function JoinGame() {
                                     focus:outline-none focus:ring-2 focus:ring-offset-2
                                     focus:ring-blue-500 transition-all duration-200
                                     ${loading || !username ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105'}`}
+
                             >
                                 {loading ? <LoadingSpinner size="small" color="white" /> : 'Join Game'}
                             </button>

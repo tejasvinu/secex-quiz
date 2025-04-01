@@ -1,9 +1,15 @@
 import axios from 'axios';
 
-const API_URL = `${import.meta.env.VITE_API_URL}/api/auth`;
+// Create an axios instance with baseURL and common headers
+const axiosInstance = axios.create({
+    baseURL: import.meta.env.VITE_API_URL,
+    headers: {
+        'Content-Type': 'application/json'
+    }
+});
 
 const register = async (userData) => {
-    const response = await axios.post(`${API_URL}/register`, userData);
+    const response = await axiosInstance.post('/api/auth/register', userData);
     if (response.data) {
         localStorage.setItem('user', JSON.stringify(response.data));
     }
@@ -11,7 +17,7 @@ const register = async (userData) => {
 };
 
 const login = async (credentials) => {
-    const response = await axios.post(`${API_URL}/login`, credentials);
+    const response = await axiosInstance.post('/api/auth/login', credentials);
     if (response.data) {
         localStorage.setItem('user', JSON.stringify(response.data));
     }

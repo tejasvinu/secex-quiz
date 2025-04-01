@@ -13,25 +13,30 @@ connectDB();
 
 const app = express();
 const httpServer = createServer(app);
+
+// CORS configuration
+const corsOptions = {
+    origin: process.env.CORS_ORIGIN || 'http://10.180.8.23:5173',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+// Initialize Socket.IO with CORS options
 const io = new Server(httpServer, {
-    cors: {
-        origin: '*', // Allow any origin in production
-        methods: ["GET", "POST"],
-        credentials: true
-    },
+    cors: corsOptions,
     transports: ['websocket', 'polling'],
     path: '/socket.io/',
-    allowEIO3: true // Allow Engine.IO version 3 clients
+    allowEIO3: true,
+    pingTimeout: 60000,
+    pingInterval: 25000
 });
 
 // Store io instance to be used in routes
 app.set('io', io);
 
 // Middleware
-app.use(cors({
-    origin: '*', // Allow any origin in production
-    credentials: true
-}));
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

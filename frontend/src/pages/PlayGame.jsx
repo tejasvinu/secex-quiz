@@ -5,6 +5,14 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
+// Create an axios instance with baseURL
+const axiosInstance = axios.create({
+    baseURL: import.meta.env.VITE_API_URL,
+    headers: {
+        'Content-Type': 'application/json'
+    }
+});
+
 export default function PlayGame() {
     const { sessionId } = useParams();
     const location = useLocation();
@@ -25,7 +33,7 @@ export default function PlayGame() {
 
         const fetchGameState = async () => {
             try {
-                const response = await axios.get(`http://localhost:5000/api/quiz/game/${sessionId}`);
+                const response = await axiosInstance.get(`/api/quiz/game/${sessionId}`);
                 setGameState(response.data);
                 if (response.data.status === 'playing') {
                     setCurrentQuestion(response.data.quiz.questions[response.data.currentQuestion]);
@@ -171,7 +179,7 @@ export default function PlayGame() {
         const timeTaken = gameState.quiz.timePerQuestion - timeLeft;
         
         try {
-            const response = await axios.post(`http://localhost:5000/api/quiz/game/${sessionId}/answer`, {
+            const response = await axiosInstance.post(`/api/quiz/game/${sessionId}/answer`, {
                 username,
                 answer: optionIndex,
                 timeTaken

@@ -5,6 +5,14 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
+// Create an axios instance with baseURL
+const axiosInstance = axios.create({
+    baseURL: import.meta.env.VITE_API_URL,
+    headers: {
+        'Content-Type': 'application/json'
+    }
+});
+
 export default function ManageQuizzes() {
     const [quizzes, setQuizzes] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -24,7 +32,7 @@ export default function ManageQuizzes() {
     const fetchQuizzes = async () => {
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
-            const response = await axios.get('http://localhost:5000/api/quiz/my-quizzes', {
+            const response = await axiosInstance.get('/api/quiz/my-quizzes', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setQuizzes(response.data);
@@ -72,7 +80,7 @@ export default function ManageQuizzes() {
         e.preventDefault();
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
-            await axios.post('http://localhost:5000/api/quiz', newQuiz, {
+            await axiosInstance.post('/api/quiz', newQuiz, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             toast.success('Quiz created successfully!');
@@ -92,8 +100,8 @@ export default function ManageQuizzes() {
     const startGame = async (quizId) => {
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
-            const response = await axios.post(
-                `http://localhost:5000/api/quiz/${quizId}/start-game`,
+            const response = await axiosInstance.post(
+                `/api/quiz/${quizId}/start-game`,
                 {},
                 { headers: { Authorization: `Bearer ${token}` }}
             );
