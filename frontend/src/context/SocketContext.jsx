@@ -9,13 +9,20 @@ export function SocketProvider({ children }) {
     const [isConnecting, setIsConnecting] = useState(true);
 
     useEffect(() => {
-        const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+        // Use window.location to get the current host dynamically
+        const host = window.location.hostname;
+        const port = window.location.port || '80';
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socketUrl = import.meta.env.VITE_SOCKET_URL || `${protocol}//${host}:${port}`;
+        
         const newSocket = io(socketUrl, {
             transports: ['websocket'],
+            path: '/socket.io/',
             autoConnect: true,
             reconnection: true,
             reconnectionAttempts: 5,
-            reconnectionDelay: 1000
+            reconnectionDelay: 1000,
+            secure: window.location.protocol === 'https:'
         });
         
         newSocket.on('connect', () => {
@@ -26,6 +33,7 @@ export function SocketProvider({ children }) {
 
         newSocket.on('connect_error', (error) => {
             console.error('Socket connection error:', error);
+            setIsConnecting(false);
         });
 
         newSocket.on('disconnect', (reason) => {

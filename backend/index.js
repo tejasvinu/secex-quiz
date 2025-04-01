@@ -15,14 +15,13 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: process.env.NODE_ENV === 'production' 
-            ? ['http://localhost:5173', 'http://frontend'] // Allow frontend service and localhost
-            : 'http://localhost:5173',
+        origin: '*', // Allow any origin in production
         methods: ["GET", "POST"],
         credentials: true
     },
     transports: ['websocket', 'polling'],
-    path: '/socket.io/'
+    path: '/socket.io/',
+    allowEIO3: true // Allow Engine.IO version 3 clients
 });
 
 // Store io instance to be used in routes
@@ -30,9 +29,7 @@ app.set('io', io);
 
 // Middleware
 app.use(cors({
-    origin: process.env.NODE_ENV === 'production'
-        ? ['http://localhost:5173', 'http://frontend']
-        : 'http://localhost:5173',
+    origin: '*', // Allow any origin in production
     credentials: true
 }));
 app.use(express.json());
@@ -69,6 +66,14 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
     });
+
+    socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+    });
+
+    socket.on('error', (error) => {
+        console.error('Socket error:', error);
+    });
 });
 
 // Routes
@@ -82,6 +87,6 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
 });
