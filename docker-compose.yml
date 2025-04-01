@@ -1,0 +1,53 @@
+services:
+  backend:
+    build: ./backend
+    container_name: secex_quiz_backend
+    ports:
+      - "5000:5000"
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/secex_quiz
+      JWT_SECRET: your_very_secure_jwt_secret_key_replace_me
+      PORT: 5000
+      NODE_ENV: production
+    volumes:
+      - ./backend:/app/backend
+      - backend_node_modules:/app/backend/node_modules
+    depends_on:
+      - mongo
+    networks:
+      - secex_network
+
+  frontend:
+    build: ./frontend
+    container_name: secex_quiz_frontend
+    ports:
+      - "5173:80"
+    environment:
+      - VITE_API_URL=http://localhost:5173
+      - VITE_SOCKET_URL=http://localhost:5173
+    volumes:
+      - ./frontend:/app/frontend
+      - frontend_node_modules:/app/frontend/node_modules
+    depends_on:
+      - backend
+    networks:
+      - secex_network
+
+  mongo:
+    image: mongo:latest
+    container_name: secex_quiz_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - secex_network
+
+volumes:
+  mongo_data:
+  backend_node_modules:
+  frontend_node_modules:
+
+networks:
+  secex_network:
+    driver: bridge
