@@ -1,15 +1,14 @@
 # Use an official Node runtime as a parent image
-FROM node:18-alpine AS builder
+FROM node:18-alpine
 
 # Set the working directory
 WORKDIR /app/backend
 
-# Copy package.json and package-lock.json (or yarn.lock)
+# Copy package files first for better caching
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install
-RUN npm install @google/generative-ai
+RUN npm install --production
 
 # Copy the rest of the application code
 COPY . .
