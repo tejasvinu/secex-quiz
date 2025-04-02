@@ -9,6 +9,8 @@ COPY package*.json ./
 
 # Install dependencies
 RUN npm install --production
+# Install missing @google/generative-ai package
+RUN npm install @google/generative-ai
 
 # Copy the rest of the application code
 COPY . .
