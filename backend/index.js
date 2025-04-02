@@ -15,8 +15,9 @@ const app = express();
 const httpServer = createServer(app);
 
 // CORS configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:5173'];
 const corsOptions = {
-    origin: process.env.CORS_ORIGIN || 'http://10.180.8.23:5173',
+    origin: process.env.NODE_ENV === 'production' ? allowedOrigins : '*',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -90,8 +91,9 @@ app.get('/', (req, res) => {
     res.json({ message: 'Welcome to SecEx Quiz API' });
 });
 
+const HOST = process.env.HOST || '0.0.0.0';
 const PORT = process.env.PORT || 5000;
 
-httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server is running on port ${PORT}`);
+httpServer.listen(PORT, HOST, () => {
+    console.log(`Server is running on ${HOST}:${PORT}`);
 });

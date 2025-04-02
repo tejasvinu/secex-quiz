@@ -41,6 +41,15 @@ const quizSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
+    },
+    isAiGenerated: {
+        type: Boolean,
+        default: false
+    },
+    sourceDocument: {
+        name: String,
+        type: String,
+        uploadDate: Date
     }
 }, {
     timestamps: true

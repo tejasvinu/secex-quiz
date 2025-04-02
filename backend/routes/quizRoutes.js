@@ -33,6 +33,73 @@ router.get('/my-quizzes', protect, async (req, res) => {
     }
 });
 
+// Get user's game history
+router.get('/my-game-history', protect, async (req, res) => {
+    try {
+        // Find games where user is host or participant
+        const hostedGames = await GameSession.find({ 
+            host: req.user._id,
+            status: 'completed'
+        }).populate('quiz', 'title description').sort('-endedAt');
+        
+        // Find games where user participated
+        const participatedGames = await GameSession.find({ 
+            'participants.username': req.user.username,
+            status: 'completed',
+            host: { $ne: req.user._id } // exclude games where user is host
+        }).populate('quiz', 'title description').sort('-endedAt');
+        
+        // Process hosted games
+        const hostedGameData = hostedGames.map(game => {
+            return {
+                id: game._id,
+                quizTitle: game.quiz.title,
+                quizDescription: game.quiz.description,
+                date: game.endedAt,
+                role: 'host',
+                participants: game.participants.length,
+                topPerformer: game.participants.sort((a, b) => b.score - a.score)[0]?.username || 'No participants',
+                topScore: game.participants.sort((a, b) => b.score - a.score)[0]?.score || 0
+            };
+        });
+        
+        // Process participated games
+        const participatedGameData = participatedGames.map(game => {
+            const userAsParticipant = game.participants.find(p => p.username === req.user.username);
+            const userPosition = game.participants.sort((a, b) => b.score - a.score)
+                .findIndex(p => p.username === req.user.username) + 1;
+            const totalParticipants = game.participants.length;
+            
+            // Calculate stats
+            const correctAnswers = userAsParticipant?.answers?.filter(a => a.isCorrect).length || 0;
+            const totalQuestions = userAsParticipant?.answers?.length || 0;
+            const accuracy = totalQuestions ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+            
+            return {
+                id: game._id,
+                quizTitle: game.quiz.title,
+                quizDescription: game.quiz.description,
+                date: game.endedAt,
+                role: 'participant',
+                score: userAsParticipant?.score || 0,
+                position: userPosition,
+                totalParticipants,
+                accuracy,
+                correctAnswers,
+                totalQuestions
+            };
+        });
+        
+        res.json({
+            hostedGames: hostedGameData,
+            participatedGames: participatedGameData
+        });
+    } catch (error) {
+        console.error('Error fetching game history:', error);
+        res.status(500).json({ message: 'Failed to fetch game history', error: error.message });
+    }
+});
+
 // Create a game session
 router.post('/:quizId/start-game', protect, async (req, res) => {
     try {

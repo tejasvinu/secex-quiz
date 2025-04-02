@@ -1,21 +1,10 @@
 import { Link } from 'react-router-dom';
+import Navigation from '../components/Navigation';
 
 export default function LandingPage() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 text-white">
-            <nav className="bg-transparent py-4">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center">
-                        <Link to="/" className="text-white text-xl font-bold hover:text-gray-200 transition-colors">
-                            CII SecEx 2025
-                        </Link>
-                        <div className="flex space-x-4 items-center">
-                            <Link to="/login" className="text-white hover:text-gray-200 transition-colors px-4 py-2 rounded-lg">Login</Link>
-                            <Link to="/register" className="btn-secondary px-4 py-2">Register</Link>
-                        </div>
-                    </div>
-                </div>
-            </nav>
+            <Navigation />
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
                 <div className="text-center max-w-4xl mx-auto">
