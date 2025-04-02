@@ -7,10 +7,8 @@ WORKDIR /app/backend
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install --production
-# Install missing @google/generative-ai package
-RUN npm install @google/generative-ai
+# Install all dependencies in a single step
+RUN npm install
 
 # Copy the rest of the application code
 COPY . .
