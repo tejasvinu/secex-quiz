@@ -7,7 +7,7 @@ WORKDIR /app/backend
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Install all dependencies in a single step
+# Install all dependencies (including dev dependencies) to ensure proper installation
 RUN npm install
 
 # Copy the rest of the application code
