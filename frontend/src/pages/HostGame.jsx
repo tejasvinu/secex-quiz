@@ -155,10 +155,10 @@ export default function HostGame() {
                 <div className="bg-white p-6 rounded-lg shadow-md">
                     <div className="flex justify-between items-center mb-6">
                         <h1 className="text-3xl font-bold text-slate-800">
-                            {gameState?.status === 'waiting' ? 'Game Lobby' : 'Game in Progress'}
+                            {gameState?.status === 'waiting' ? 'Session Lobby' : 'Session in Progress'}
                         </h1>
                         <div className="text-right">
-                            <p className="text-sm text-slate-600">Game Code:</p>
+                            <p className="text-sm text-slate-600">Session Code:</p>
                             <p className="text-2xl font-bold text-blue-600">{location.state?.gameCode}</p>
                         </div>
                     </div>
@@ -166,7 +166,7 @@ export default function HostGame() {
                     {gameState?.status === 'waiting' && (
                         <>
                             <div className="mb-8">
-                                <h2 className="text-xl font-semibold text-slate-800 mb-4">Players</h2>
+                                <h2 className="text-xl font-semibold text-slate-800 mb-4">Participants</h2>
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                     {gameState?.participants.map((participant, index) => (
                                         <div
@@ -180,16 +180,16 @@ export default function HostGame() {
                             </div>
 
                             <div className="flex flex-col items-center justify-center space-y-4">
-                                <p className="text-lg text-slate-600">Waiting for players to join...</p>
+                                <p className="text-lg text-slate-600">Waiting for participants to join...</p>
                                 <p className="text-sm text-slate-500">
-                                    Share the game code with players to let them join
+                                    Share the session code with participants to allow them to join
                                 </p>
                                 {gameState.participants.length >= 1 && (
                                     <button
                                         className="btn-primary px-6 py-3"
                                         onClick={startGame}
                                     >
-                                        Start Game
+                                        Begin Session
                                     </button>
                                 )}
                             </div>
@@ -225,13 +225,13 @@ export default function HostGame() {
 
                             <div>
                                 <h3 className="text-lg font-medium text-slate-800 mb-2">
-                                    Players who answered: {answeredPlayers.size}/{gameState.participants.length}
+                                    Responses received: {answeredPlayers.size}/{gameState.participants.length}
                                 </h3>
                                 <div className="flex flex-wrap gap-2">
                                     {Array.from(answeredPlayers).map((username, index) => (
                                         <span
                                             key={index}
-                                            className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
+                                            className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm"
                                         >
                                             {username}
                                         </span>
@@ -244,7 +244,7 @@ export default function HostGame() {
                                     className="btn-primary px-6 py-3"
                                     onClick={handleNextQuestion}
                                 >
-                                    Next Question
+                                    Proceed to Next Question
                                 </button>
                             </div>
                         </div>
@@ -252,9 +252,9 @@ export default function HostGame() {
 
                     {gameState?.status === 'completed' && (
                         <div className="text-center space-y-6">
-                            <h2 className="text-2xl font-bold text-slate-800">Game Complete!</h2>
+                            <h2 className="text-2xl font-bold text-slate-800">Assessment Complete</h2>
                             <div className="space-y-4">
-                                <h3 className="text-xl font-semibold text-slate-800">Final Scores</h3>
+                                <h3 className="text-xl font-semibold text-slate-800">Final Results</h3>
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                     {gameState.participants
                                         .sort((a, b) => b.score - a.score)
@@ -269,6 +269,9 @@ export default function HostGame() {
                                                 </p>
                                                 <p className={`text-sm ${index === 0 ? 'text-yellow-600' : 'text-blue-600'}`}>
                                                     {participant.score} points
+                                                </p>
+                                                <p className="text-sm text-gray-600">
+                                                    {participant.accuracy}% correct
                                                 </p>
                                             </div>
                                         ))

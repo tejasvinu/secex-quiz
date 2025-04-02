@@ -57,5 +57,19 @@ gameSessionSchema.pre('validate', function(next) {
     next();
 });
 
+// Calculate points based on time taken
+gameSessionSchema.methods.calculatePoints = function(questionIndex, timeTaken, isCorrect) {
+    const question = this.quiz.questions[questionIndex];
+    if (!isCorrect) return 0;
+    
+    // If answered correctly, calculate points based on time
+    const maxTime = this.quiz.timePerQuestion;
+    const timeRatio = Math.max(0, (maxTime - timeTaken) / maxTime);
+    const pointRange = question.maxPoints - question.basePoints;
+    const points = Math.round(question.basePoints + (pointRange * timeRatio));
+    
+    return Math.max(question.basePoints, Math.min(question.maxPoints, points));
+};
+
 const GameSession = mongoose.model('GameSession', gameSessionSchema);
 module.exports = GameSession;

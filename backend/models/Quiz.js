@@ -13,9 +13,13 @@ const questionSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
-    points: {
+    maxPoints: {
         type: Number,
-        default: 1
+        default: 1000 // maximum points possible for fastest answer
+    },
+    basePoints: {
+        type: Number,
+        default: 100 // minimum points for correct answer regardless of time
     }
 });
 

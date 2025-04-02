@@ -18,12 +18,24 @@ export default function ManageQuizzes() {
     const [loading, setLoading] = useState(true);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [showDocumentUploadForm, setShowDocumentUploadForm] = useState(false);
+    const [showTopicForm, setShowTopicForm] = useState(false);
     const [showImportForm, setShowImportForm] = useState(false);
+    const [showEditForm, setShowEditForm] = useState(false);
+    const [showStats, setShowStats] = useState(false);
+    const [selectedQuiz, setSelectedQuiz] = useState(null);
+    const [stats, setStats] = useState(null);
     const [newQuiz, setNewQuiz] = useState({
         title: '',
         description: '',
         timePerQuestion: 20,
         questions: []
+    });
+    const [topicQuiz, setTopicQuiz] = useState({
+        title: '',
+        description: '',
+        topic: '',
+        timePerQuestion: 30,
+        numQuestions: 10
     });
     const [documentUpload, setDocumentUpload] = useState({
         title: '',
@@ -35,7 +47,20 @@ export default function ManageQuizzes() {
     const [importQuiz, setImportQuiz] = useState({
         jsonContent: ''
     });
+    const [openMenuId, setOpenMenuId] = useState(null);
     const navigate = useNavigate();
+
+    // Add click outside handler
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (!event.target.closest('.dropdown')) {
+                setOpenMenuId(null);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     useEffect(() => {
         fetchQuizzes();
@@ -52,6 +77,76 @@ export default function ManageQuizzes() {
             toast.error('Failed to fetch quizzes');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchQuizDetails = async (quizId) => {
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            const response = await axiosInstance.get(`/api/quiz/${quizId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setSelectedQuiz(response.data);
+            setShowEditForm(true);
+        } catch (error) {
+            toast.error('Failed to fetch quiz details');
+        }
+    };
+
+    const fetchQuizStats = async (quizId) => {
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            const response = await axiosInstance.get(`/api/quiz/${quizId}/stats`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setStats(response.data);
+            setShowStats(true);
+        } catch (error) {
+            toast.error('Failed to fetch quiz statistics');
+        }
+    };
+
+    const handleUpdateQuiz = async (e) => {
+        e.preventDefault();
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            await axiosInstance.put(`/api/quiz/${selectedQuiz._id}`, selectedQuiz, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success('Quiz updated successfully!');
+            setShowEditForm(false);
+            fetchQuizzes();
+        } catch (error) {
+            toast.error('Failed to update quiz');
+        }
+    };
+
+    const handleDeleteQuiz = async (quizId) => {
+        if (!confirm('Are you sure you want to delete this quiz? This action cannot be undone.')) {
+            return;
+        }
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            await axiosInstance.delete(`/api/quiz/${quizId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success('Quiz deleted successfully!');
+            fetchQuizzes();
+        } catch (error) {
+            toast.error('Failed to delete quiz');
+        }
+    };
+
+    const handleDuplicateQuiz = async (quizId) => {
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            await axiosInstance.post(`/api/quiz/${quizId}/duplicate`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success('Quiz duplicated successfully!');
+            fetchQuizzes();
+        } catch (error) {
+            toast.error('Failed to duplicate quiz');
         }
     };
 
@@ -172,6 +267,28 @@ export default function ManageQuizzes() {
         }
     };
 
+    const handleCreateTopicQuiz = async (e) => {
+        e.preventDefault();
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            await axiosInstance.post('/api/quiz/create-from-topic', topicQuiz, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success('Topic Quiz created successfully!');
+            setShowTopicForm(false);
+            fetchQuizzes();
+            setTopicQuiz({
+                title: '',
+                description: '',
+                topic: '',
+                timePerQuestion: 30,
+                numQuestions: 10
+            });
+        } catch (error) {
+            toast.error('Failed to create topic quiz');
+        }
+    };
+
     const startGame = async (quizId) => {
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
@@ -204,8 +321,14 @@ export default function ManageQuizzes() {
             <Navigation />
             <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center mb-8">
-                    <h1 className="text-3xl font-bold text-slate-800">My Quizzes</h1>
+                    <h1 className="text-3xl font-bold text-slate-800">My Assessment Library</h1>
                     <div className="space-x-4">
+                        <button
+                            onClick={() => setShowTopicForm(true)}
+                            className="btn-secondary px-4 py-2"
+                        >
+                            Topic Quiz
+                        </button>
                         <button
                             onClick={() => setShowDocumentUploadForm(true)}
                             className="btn-secondary px-4 py-2"
@@ -216,16 +339,105 @@ export default function ManageQuizzes() {
                             onClick={() => setShowImportForm(true)}
                             className="btn-secondary px-4 py-2"
                         >
-                            Import Quiz
+                            Import Assessment
                         </button>
                         <button
                             onClick={() => setShowCreateForm(true)}
                             className="btn-primary px-4 py-2"
                         >
-                            Create New Quiz
+                            Create New Assessment
                         </button>
                     </div>
                 </div>
+
+                {showTopicForm && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
+                            <h2 className="text-2xl font-bold text-slate-800 mb-4">Generate Quiz from Topic</h2>
+                            <form onSubmit={handleCreateTopicQuiz} className="space-y-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Title</label>
+                                    <input
+                                        type="text"
+                                        value={topicQuiz.title}
+                                        onChange={(e) => setTopicQuiz(prev => ({ ...prev, title: e.target.value }))}
+                                        className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                        placeholder="Enter quiz title"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Description</label>
+                                    <textarea
+                                        value={topicQuiz.description}
+                                        onChange={(e) => setTopicQuiz(prev => ({ ...prev, description: e.target.value }))}
+                                        className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                        rows="2"
+                                        placeholder="Enter quiz description"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Topic</label>
+                                    <textarea
+                                        value={topicQuiz.topic}
+                                        onChange={(e) => setTopicQuiz(prev => ({ ...prev, topic: e.target.value }))}
+                                        className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                        rows="3"
+                                        placeholder="Enter the topic or concept you want to create a quiz about. Be as specific as possible."
+                                        required
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700">
+                                            Time per question (seconds)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={topicQuiz.timePerQuestion}
+                                            onChange={(e) => setTopicQuiz(prev => ({ ...prev, timePerQuestion: parseInt(e.target.value) }))}
+                                            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                            min="5"
+                                            max="300"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700">
+                                            Number of Questions
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={topicQuiz.numQuestions}
+                                            onChange={(e) => setTopicQuiz(prev => ({ ...prev, numQuestions: parseInt(e.target.value) }))}
+                                            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                            min="5"
+                                            max="50"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex justify-end space-x-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowTopicForm(false)}
+                                        className="px-4 py-2 border border-gray-300 rounded-lg text-slate-700 hover:bg-gray-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="btn-primary px-4 py-2"
+                                        disabled={!topicQuiz.topic}
+                                    >
+                                        Generate Quiz
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
 
                 {showDocumentUploadForm && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -489,29 +701,366 @@ export default function ManageQuizzes() {
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {quizzes.map((quiz) => (
-                        <div key={quiz._id} className="card">
-                            <h3 className="text-xl font-semibold text-slate-800 mb-2">{quiz.title}</h3>
-                            <p className="text-slate-600 mb-4">{quiz.description}</p>
-                            {quiz.sourceDocument && (
-                                <p className="text-sm text-slate-500 mb-2">
-                                    Generated from: {quiz.sourceDocument.name}
-                                </p>
-                            )}
-                            <div className="flex justify-between items-center">
-                                <span className="text-sm text-slate-500">
-                                    {quiz.questions.length} questions
-                                </span>
+                {showEditForm && selectedQuiz && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
+                            <h2 className="text-2xl font-bold text-slate-800 mb-4">Edit Quiz</h2>
+                            <form onSubmit={handleUpdateQuiz} className="space-y-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Title</label>
+                                    <input
+                                        type="text"
+                                        value={selectedQuiz.title}
+                                        onChange={(e) => setSelectedQuiz({...selectedQuiz, title: e.target.value})}
+                                        className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Description</label>
+                                    <textarea
+                                        value={selectedQuiz.description}
+                                        onChange={(e) => setSelectedQuiz({...selectedQuiz, description: e.target.value})}
+                                        className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                        rows="3"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">
+                                        Time per question (seconds)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={selectedQuiz.timePerQuestion}
+                                        onChange={(e) => setSelectedQuiz({...selectedQuiz, timePerQuestion: parseInt(e.target.value)})}
+                                        className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                        min="5"
+                                        max="300"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="text-lg font-medium text-slate-800">Questions</h3>
+                                    </div>
+
+                                    {selectedQuiz.questions.map((q, qIndex) => (
+                                        <div key={qIndex} className="bg-gray-50 p-4 rounded-lg space-y-4">
+                                            <div className="flex justify-between">
+                                                <label className="block text-sm font-medium text-slate-700">
+                                                    Question {qIndex + 1}
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const questions = [...selectedQuiz.questions];
+                                                        questions.splice(qIndex, 1);
+                                                        setSelectedQuiz({...selectedQuiz, questions});
+                                                    }}
+                                                    className="text-red-600 hover:text-red-800"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={q.question}
+                                                onChange={(e) => {
+                                                    const questions = [...selectedQuiz.questions];
+                                                    questions[qIndex] = {...questions[qIndex], question: e.target.value};
+                                                    setSelectedQuiz({...selectedQuiz, questions});
+                                                }}
+                                                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                                required
+                                            />
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {q.options.map((opt, optIndex) => (
+                                                    <div key={optIndex}>
+                                                        <label className="block text-sm font-medium text-slate-700">
+                                                            Option {optIndex + 1}
+                                                            {optIndex === q.correctOption && ' (Correct)'}
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={opt}
+                                                            onChange={(e) => {
+                                                                const questions = [...selectedQuiz.questions];
+                                                                const options = [...questions[qIndex].options];
+                                                                options[optIndex] = e.target.value;
+                                                                questions[qIndex] = {...questions[qIndex], options};
+                                                                setSelectedQuiz({...selectedQuiz, questions});
+                                                            }}
+                                                            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                                            required
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700">
+                                                    Correct Option
+                                                </label>
+                                                <select
+                                                    value={q.correctOption}
+                                                    onChange={(e) => {
+                                                        const questions = [...selectedQuiz.questions];
+                                                        questions[qIndex] = {...questions[qIndex], correctOption: parseInt(e.target.value)};
+                                                        setSelectedQuiz({...selectedQuiz, questions});
+                                                    }}
+                                                    className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                                    required
+                                                >
+                                                    {q.options.map((_, index) => (
+                                                        <option key={index} value={index}>
+                                                            Option {index + 1}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const questions = [...selectedQuiz.questions];
+                                            questions.push({
+                                                question: '',
+                                                options: ['', '', '', ''],
+                                                correctOption: 0,
+                                                points: 1
+                                            });
+                                            setSelectedQuiz({...selectedQuiz, questions});
+                                        }}
+                                        className="btn-secondary px-3 py-1"
+                                    >
+                                        Add Question
+                                    </button>
+                                </div>
+
+                                <div className="flex justify-end space-x-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEditForm(false)}
+                                        className="px-4 py-2 border border-gray-300 rounded-lg text-slate-700 hover:bg-gray-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="btn-primary px-4 py-2"
+                                    >
+                                        Save Changes
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {showStats && stats && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
+                            <h2 className="text-2xl font-bold text-slate-800 mb-4">Quiz Statistics</h2>
+                            <div className="grid grid-cols-2 gap-6 mb-6">
+                                <div className="bg-blue-50 p-4 rounded-lg">
+                                    <h3 className="text-lg font-semibold text-blue-800">Total Games</h3>
+                                    <p className="text-3xl font-bold text-blue-600">{stats.totalGames}</p>
+                                </div>
+                                <div className="bg-green-50 p-4 rounded-lg">
+                                    <h3 className="text-lg font-semibold text-green-800">Total Participants</h3>
+                                    <p className="text-3xl font-bold text-green-600">{stats.totalParticipants}</p>
+                                </div>
+                                <div className="bg-purple-50 p-4 rounded-lg">
+                                    <h3 className="text-lg font-semibold text-purple-800">Average Score</h3>
+                                    <p className="text-3xl font-bold text-purple-600">{stats.averageScore}</p>
+                                </div>
+                                <div className="bg-orange-50 p-4 rounded-lg">
+                                    <h3 className="text-lg font-semibold text-orange-800">Average Accuracy</h3>
+                                    <p className="text-3xl font-bold text-orange-600">{stats.averageAccuracy}%</p>
+                                </div>
+                            </div>
+
+                            <h3 className="text-xl font-semibold text-slate-800 mb-4">Question Statistics</h3>
+                            <div className="space-y-4">
+                                {stats.questionStats.map((stat, index) => (
+                                    <div key={index} className="bg-gray-50 p-4 rounded-lg">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <h4 className="font-medium text-slate-700">Question {stat.questionNumber}</h4>
+                                            <span className="text-sm text-slate-500">{stat.totalAttempts} attempts</span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                            <div
+                                                className="bg-blue-600 h-2.5 rounded-full"
+                                                style={{ width: `${stat.correctPercentage}%` }}
+                                            ></div>
+                                        </div>
+                                        <p className="text-sm text-slate-600 mt-1">{stat.correctPercentage}% correct</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="mt-6 flex justify-end">
                                 <button
-                                    onClick={() => startGame(quiz._id)}
-                                    className="btn-primary px-4 py-2"
+                                    onClick={() => setShowStats(false)}
+                                    className="px-4 py-2 border border-gray-300 rounded-lg text-slate-700 hover:bg-gray-50"
                                 >
-                                    Start Game
+                                    Close
                                 </button>
                             </div>
                         </div>
-                    ))}
+                    </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {quizzes.length === 0 ? (
+                        <div className="col-span-3 py-12 text-center">
+                            <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                </svg>
+                            </div>
+                            <h3 className="text-xl font-semibold text-gray-700 mb-2">No assessments available</h3>
+                            <p className="text-gray-500 mb-6">Create your first assessment to begin</p>
+                            <button
+                                onClick={() => setShowCreateForm(true)}
+                                className="btn-primary px-6 py-2 transition-all duration-300 transform hover:scale-105"
+                            >
+                                Create New Assessment
+                            </button>
+                        </div>
+                    ) : (
+                        quizzes.map((quiz) => (
+                            <div 
+                                key={quiz._id} 
+                                className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-blue-100 transform hover:-translate-y-1"
+                            >
+                                <div className="p-6">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <h3 className="text-xl font-semibold text-slate-800 hover:text-blue-600 transition-colors duration-200">{quiz.title}</h3>
+                                        <div className="dropdown relative">
+                                            <button 
+                                                className={`p-1.5 rounded-full transition-colors duration-200 ${
+                                                    openMenuId === quiz._id ? 'bg-gray-100' : 'hover:bg-gray-100'
+                                                }`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenMenuId(openMenuId === quiz._id ? null : quiz._id);
+                                                }}
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                                </svg>
+                                            </button>
+                                            <div 
+                                                className={`dropdown-menu origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none transition-all duration-200 ${
+                                                    openMenuId === quiz._id 
+                                                        ? 'transform opacity-100 scale-100' 
+                                                        : 'transform opacity-0 scale-95 pointer-events-none'
+                                                }`}
+                                            >
+                                                <div className="py-1">
+                                                    <button 
+                                                        onClick={() => {
+                                                            fetchQuizDetails(quiz._id);
+                                                            setOpenMenuId(null);
+                                                        }}
+                                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-150"
+                                                    >
+                                                        Edit Assessment
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            handleDuplicateQuiz(quiz._id);
+                                                            setOpenMenuId(null);
+                                                        }}
+                                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-150"
+                                                    >
+                                                        Duplicate Assessment
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            fetchQuizStats(quiz._id);
+                                                            setOpenMenuId(null);
+                                                        }}
+                                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-150"
+                                                    >
+                                                        View Analytics
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            handleDeleteQuiz(quiz._id);
+                                                            setOpenMenuId(null);
+                                                        }}
+                                                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors duration-150"
+                                                    >
+                                                        Delete Assessment
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p className="text-slate-600 mb-4 line-clamp-2">{quiz.description}</p>
+                                    {quiz.sourceDocument && (
+                                        <div className="flex items-center mb-3 text-sm text-slate-500">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                            <span className="truncate" title={quiz.sourceDocument.name}>
+                                                {quiz.sourceDocument.name}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div className="flex flex-wrap gap-2 mb-5">
+                                        <span className="text-sm bg-blue-50 text-blue-700 px-2 py-1 rounded-full flex items-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            {quiz.questions.length} questions
+                                        </span>
+                                        <span className="text-sm bg-purple-50 text-purple-700 px-2 py-1 rounded-full flex items-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            {quiz.timePerQuestion}s per question
+                                        </span>
+                                        {quiz.isAiGenerated && (
+                                            <span className="text-sm bg-green-50 text-green-700 px-2 py-1 rounded-full flex items-center">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                                </svg>
+                                                AI Generated
+                                            </span>
+                                        )}
+                                        {new Date(quiz.createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) && (
+                                            <span className="text-sm bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full flex items-center">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                                </svg>
+                                                New
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="bg-gray-50 p-4 border-t border-gray-100 flex">
+                                    <button
+                                        onClick={() => startGame(quiz._id)}
+                                        className="btn-gradient flex-1 py-2 text-sm font-medium flex items-center justify-center"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Begin Session
+                                    </button>
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             </main>
         </div>

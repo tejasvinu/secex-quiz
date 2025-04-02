@@ -19,43 +19,52 @@ export default function Dashboard() {
     const [isLoading, setIsLoading] = useState(true);
     const [gameHistory, setGameHistory] = useState({ hostedGames: [], participatedGames: [] });
     const [progressPercentage, setProgressPercentage] = useState(0);
+    const [error, setError] = useState(null);
     
-    const circumference = 2 * Math.PI * 24; // 2 * pi * radius
+    const circumference = 2 * Math.PI * 24;
     const strokeDashoffset = circumference - (progressPercentage / 100) * circumference;
 
     useEffect(() => {
         const fetchGameHistory = async () => {
             try {
-                const token = JSON.parse(localStorage.getItem('user')).token;
+                if (!user?.token) {
+                    throw new Error('No authentication token found');
+                }
+
                 const response = await axiosInstance.get('/api/quiz/my-game-history', {
-                    headers: { Authorization: `Bearer ${token}` }
+                    headers: { 
+                        Authorization: `Bearer ${user.token}`,
+                        'Content-Type': 'application/json'
+                    }
                 });
+
+                if (!response.data) {
+                    throw new Error('No data received from server');
+                }
+
                 setGameHistory(response.data);
                 
-                // Calculate overall progress based on game participation and performance
+                // Calculate overall progress
                 const totalGames = response.data.hostedGames.length + response.data.participatedGames.length;
                 if (totalGames > 0) {
-                    // Calculate average performance from participated games
                     const totalAccuracy = response.data.participatedGames.reduce((sum, game) => sum + game.accuracy, 0);
                     const avgAccuracy = response.data.participatedGames.length > 0 
                         ? Math.round(totalAccuracy / response.data.participatedGames.length) 
                         : 0;
                     
-                    // Factor in number of games and average accuracy
-                    const gameCountFactor = Math.min(totalGames * 10, 50); // Max 50% from count (5+ games = 50%)
-                    const accuracyFactor = Math.round(avgAccuracy / 2); // Max 50% from accuracy
-                    
+                    const gameCountFactor = Math.min(totalGames * 10, 50);
+                    const accuracyFactor = Math.round(avgAccuracy / 2);
                     setProgressPercentage(Math.min(gameCountFactor + accuracyFactor, 100));
                 }
             } catch (error) {
                 console.error('Error fetching game history:', error);
-                toast.error('Failed to load game history');
+                setError(error.message);
+                toast.error(error.response?.data?.message || 'Failed to load game history');
             } finally {
                 setIsLoading(false);
             }
         };
 
-        // Simulate minimum loading time for better UX
         const timer = setTimeout(() => {
             if (user?.token) {
                 fetchGameHistory();

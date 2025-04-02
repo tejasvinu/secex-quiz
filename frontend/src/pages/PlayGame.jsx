@@ -78,25 +78,12 @@ export default function PlayGame() {
             }
         };
 
-        const handlePlayerAnswered = ({ username: playerName, pointsEarned, isCorrect }) => {
+        const handlePlayerAnswered = ({ username: playerName }) => {
             if (playerName === username) {
-                // Show feedback for the user's answer
-                toast[isCorrect ? 'success' : 'error'](
-                    isCorrect ? `Correct! +${pointsEarned} points` : 'Incorrect answer',
-                    { duration: 3000 }
-                );
-                
-                // Update local score when the player answers
-                setGameState(prev => ({
-                    ...prev,
-                    participants: prev.participants.map(p => 
-                        p.username === username 
-                            ? { ...p, score: (p.score || 0) + (pointsEarned || 0) }
-                            : p
-                    )
-                }));
+                // Only show that answer was submitted, no correctness feedback
+                toast.success('Answer submitted!', { duration: 2000 });
             } else {
-                toast(`${playerName} has answered!`, {
+                toast.info(`${playerName} has answered!`, {
                     icon: '✍️',
                     position: 'bottom-right',
                     duration: 2000
@@ -185,21 +172,8 @@ export default function PlayGame() {
                 timeTaken
             });
 
-            // Visual feedback based on server response
-            const answerClass = response.data.isCorrect ? 'bg-green-500' : 'bg-red-500';
-            document.querySelector(`button[data-option="${optionIndex}"]`)?.classList.add(answerClass);
-            
-            // Update local score immediately
-            if (response.data.isCorrect) {
-                setGameState(prev => ({
-                    ...prev,
-                    participants: prev.participants.map(p => 
-                        p.username === username 
-                            ? { ...p, score: (p.score || 0) + response.data.pointsEarned }
-                            : p
-                    )
-                }));
-            }
+            // Always use blue color for consistency
+            document.querySelector(`button[data-option="${optionIndex}"]`)?.classList.add('bg-blue-500/50');
         } catch (error) {
             toast.error('Failed to submit answer');
         }
@@ -222,8 +196,8 @@ export default function PlayGame() {
             <div className="max-w-3xl mx-auto">
                 {gameState?.status === 'waiting' && (
                     <div className="text-center space-y-4">
-                        <h1 className="text-3xl font-bold">Waiting for the game to start...</h1>
-                        <p className="text-xl">Get ready, {username}!</p>
+                        <h1 className="text-3xl font-bold">Waiting for the session to begin...</h1>
+                        <p className="text-xl">Please standby, {username}</p>
                         <div className="animate-bounce mt-8">
                             <LoadingSpinner size="large" color="white" />
                         </div>
@@ -235,9 +209,7 @@ export default function PlayGame() {
                         <div className="flex justify-between items-center">
                             <div>
                                 <h2 className="text-2xl font-bold">Question {gameState.currentQuestion + 1}</h2>
-                                <p className="text-sm text-gray-300">
-                                    Your score: {gameState.participants.find(p => p.username === username)?.score || 0} points
-                                </p>
+                                {/* Remove score display */}
                             </div>
                             <div className="text-xl font-mono bg-white/10 px-4 py-2 rounded-lg">
                                 {timeLeft}s
@@ -256,7 +228,7 @@ export default function PlayGame() {
                                         className={`p-4 rounded-lg text-left transition-all duration-200
                                             ${hasAnswered
                                                 ? index === selectedAnswer
-                                                    ? 'text-white'
+                                                    ? 'bg-blue-500/50' // Change color to neutral feedback
                                                     : 'bg-white/5'
                                                 : 'bg-white/5 hover:bg-white/20'
                                             }
@@ -270,7 +242,7 @@ export default function PlayGame() {
 
                         {hasAnswered && (
                             <div className="text-center text-xl">
-                                Waiting for other players...
+                                Awaiting other participants' responses...
                             </div>
                         )}
                     </div>
@@ -280,9 +252,9 @@ export default function PlayGame() {
                     <div className="text-center space-y-8">
                         <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 p-8 rounded-xl border border-blue-500/20 backdrop-blur-lg">
                             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">
-                                Game Over!
+                                Session Complete
                             </h1>
-                            <p className="text-gray-300 text-lg mb-8">Thanks for playing!</p>
+                            <p className="text-gray-300 text-lg mb-8">Thank you for participating</p>
 
                             {/* Trophy animation for winner */}
                             {gameState.participants.sort((a, b) => b.score - a.score)[0]?.username === username && (
@@ -356,7 +328,7 @@ export default function PlayGame() {
                                     <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
                                     </svg>
-                                    Join Another Game
+                                    Join Another Session
                                 </Link>
                                 <Link
                                     to="/"

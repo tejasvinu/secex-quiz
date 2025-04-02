@@ -30,11 +30,11 @@ export default function Navigation() {
 
   const loggedInNavItems = [
     { path: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
-    { path: '/manage-quizzes', label: 'My Quizzes', Icon: ListChecks },
+    { path: '/manage-quizzes', label: 'My Assessments', Icon: ListChecks },
   ];
 
   const loggedOutNavItems = [
-    { path: '/join-game', label: 'Join Game', Icon: Gamepad2, isPrimary: true },
+    { path: '/join-game', label: 'Join Session', Icon: Gamepad2, isPrimary: true },
   ];
 
   // Combine nav items based on user status
