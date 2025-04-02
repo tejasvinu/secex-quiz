@@ -85,16 +85,27 @@ async function extractTextFromDocument(file) {
     const filePath = file.path;
     const mimeType = file.mimetype;
 
+    let text;
     switch (mimeType) {
       case 'application/pdf':
-        return await extractTextFromPdf(filePath);
+        text = await extractTextFromPdf(filePath);
+        break;
       case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-        return await extractTextFromDocx(filePath);
+        text = await extractTextFromDocx(filePath);
+        break;
       case 'text/plain':
-        return await extractTextFromTxt(filePath);
+        text = await extractTextFromTxt(filePath);
+        break;
       default:
         throw new Error('Unsupported file type');
     }
+
+    // Clean up the uploaded file after extraction
+    fs.unlink(filePath, (err) => {
+      if (err) console.error('Error deleting uploaded file:', err);
+    });
+
+    return text;
   } catch (error) {
     console.error('Error extracting text:', error);
     throw error;
@@ -123,7 +134,14 @@ Format each question as a JSON object with:
 - options: An array of 4 possible answers
 - correctOption: The index (0-3) of the correct answer
 
-Make sure questions cover key concepts and are challenging but fair.
+Rules:
+1. Questions should test understanding, not just memorization
+2. Make all options plausible and similar in length
+3. Distribute correct answers evenly across options
+4. Avoid obvious patterns in correct answers
+5. Questions should be challenging but fair
+6. Questions should cover different aspects of the content
+
 The quiz is about: ${title}
 
 Here's the text to base the quiz on:
@@ -156,7 +174,25 @@ Respond with valid JSON in this format:
     }
     
     const jsonContent = JSON.parse(jsonMatch[0]);
-    return jsonContent.questions;
+    if (!jsonContent.questions || !Array.isArray(jsonContent.questions)) {
+      throw new Error('Invalid quiz format generated');
+    }
+
+    // Validate and clean up questions
+    const validQuestions = jsonContent.questions.filter(q => 
+      q.question && 
+      Array.isArray(q.options) && 
+      q.options.length === 4 && 
+      typeof q.correctOption === 'number' && 
+      q.correctOption >= 0 && 
+      q.correctOption < 4
+    );
+
+    if (validQuestions.length < 5) {
+      throw new Error('Not enough valid questions generated');
+    }
+
+    return validQuestions;
   } catch (error) {
     console.error('Error generating quiz with AI:', error);
     throw new Error('Failed to generate quiz questions');

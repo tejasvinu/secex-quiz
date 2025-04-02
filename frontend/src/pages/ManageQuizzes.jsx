@@ -17,11 +17,23 @@ export default function ManageQuizzes() {
     const [quizzes, setQuizzes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showCreateForm, setShowCreateForm] = useState(false);
+    const [showDocumentUploadForm, setShowDocumentUploadForm] = useState(false);
+    const [showImportForm, setShowImportForm] = useState(false);
     const [newQuiz, setNewQuiz] = useState({
         title: '',
         description: '',
         timePerQuestion: 20,
         questions: []
+    });
+    const [documentUpload, setDocumentUpload] = useState({
+        title: '',
+        description: '',
+        timePerQuestion: 30,
+        numQuestions: 10,
+        file: null
+    });
+    const [importQuiz, setImportQuiz] = useState({
+        jsonContent: ''
     });
     const navigate = useNavigate();
 
@@ -40,6 +52,69 @@ export default function ManageQuizzes() {
             toast.error('Failed to fetch quizzes');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDocumentUpload = async (e) => {
+        e.preventDefault();
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            const formData = new FormData();
+            formData.append('document', documentUpload.file);
+            formData.append('title', documentUpload.title);
+            formData.append('description', documentUpload.description);
+            formData.append('timePerQuestion', documentUpload.timePerQuestion);
+            formData.append('numQuestions', documentUpload.numQuestions);
+
+            const response = await axios.post(
+                `${import.meta.env.VITE_API_URL}/api/quiz/create-from-document`,
+                formData,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'multipart/form-data'
+                    }
+                }
+            );
+
+            toast.success('Quiz generated successfully!');
+            setShowDocumentUploadForm(false);
+            fetchQuizzes();
+            setDocumentUpload({
+                title: '',
+                description: '',
+                timePerQuestion: 30,
+                numQuestions: 10,
+                file: null
+            });
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to generate quiz from document');
+        }
+    };
+
+    const handleImportQuiz = async (e) => {
+        e.preventDefault();
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            let quizData;
+            try {
+                quizData = JSON.parse(importQuiz.jsonContent);
+            } catch (error) {
+                toast.error('Invalid JSON format');
+                return;
+            }
+
+            await axiosInstance.post('/api/quiz/import-json',
+                { quiz: quizData },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            toast.success('Quiz imported successfully!');
+            setShowImportForm(false);
+            fetchQuizzes();
+            setImportQuiz({ jsonContent: '' });
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to import quiz');
         }
     };
 
@@ -130,17 +205,166 @@ export default function ManageQuizzes() {
             <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-3xl font-bold text-slate-800">My Quizzes</h1>
-                    <button
-                        onClick={() => setShowCreateForm(true)}
-                        className="btn-primary px-4 py-2"
-                    >
-                        Create New Quiz
-                    </button>
+                    <div className="space-x-4">
+                        <button
+                            onClick={() => setShowDocumentUploadForm(true)}
+                            className="btn-secondary px-4 py-2"
+                        >
+                            Upload Document
+                        </button>
+                        <button
+                            onClick={() => setShowImportForm(true)}
+                            className="btn-secondary px-4 py-2"
+                        >
+                            Import Quiz
+                        </button>
+                        <button
+                            onClick={() => setShowCreateForm(true)}
+                            className="btn-primary px-4 py-2"
+                        >
+                            Create New Quiz
+                        </button>
+                    </div>
                 </div>
 
+                {showDocumentUploadForm && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
+                            <h2 className="text-2xl font-bold text-slate-800 mb-4">Generate Quiz from Document</h2>
+                            <form onSubmit={handleDocumentUpload} className="space-y-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Title</label>
+                                    <input
+                                        type="text"
+                                        value={documentUpload.title}
+                                        onChange={(e) => setDocumentUpload(prev => ({ ...prev, title: e.target.value }))}
+                                        className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Description</label>
+                                    <textarea
+                                        value={documentUpload.description}
+                                        onChange={(e) => setDocumentUpload(prev => ({ ...prev, description: e.target.value }))}
+                                        className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                        rows="3"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700">
+                                            Time per question (seconds)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={documentUpload.timePerQuestion}
+                                            onChange={(e) => setDocumentUpload(prev => ({ ...prev, timePerQuestion: parseInt(e.target.value) }))}
+                                            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                            min="5"
+                                            max="300"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700">
+                                            Number of Questions
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={documentUpload.numQuestions}
+                                            onChange={(e) => setDocumentUpload(prev => ({ ...prev, numQuestions: parseInt(e.target.value) }))}
+                                            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                            min="5"
+                                            max="50"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Upload Document</label>
+                                    <input
+                                        type="file"
+                                        onChange={(e) => setDocumentUpload(prev => ({ ...prev, file: e.target.files[0] }))}
+                                        className="mt-1 block w-full"
+                                        accept=".pdf,.txt,.docx"
+                                        required
+                                    />
+                                    <p className="mt-1 text-sm text-slate-500">
+                                        Supported formats: PDF, TXT, DOCX (Max 5MB)
+                                    </p>
+                                </div>
+                                <div className="flex justify-end space-x-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowDocumentUploadForm(false)}
+                                        className="px-4 py-2 border border-gray-300 rounded-lg text-slate-700 hover:bg-gray-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="btn-primary px-4 py-2"
+                                        disabled={!documentUpload.file}
+                                    >
+                                        Generate Quiz
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {showImportForm && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
+                            <h2 className="text-2xl font-bold text-slate-800 mb-4">Import Quiz from JSON</h2>
+                            <form onSubmit={handleImportQuiz} className="space-y-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">JSON Content</label>
+                                    <textarea
+                                        value={importQuiz.jsonContent}
+                                        onChange={(e) => setImportQuiz(prev => ({ ...prev, jsonContent: e.target.value }))}
+                                        className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-mono"
+                                        rows="10"
+                                        placeholder='{
+  "title": "Quiz Title",
+  "description": "Quiz Description",
+  "timePerQuestion": 30,
+  "questions": [
+    {
+      "question": "Question text",
+      "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+      "correctOption": 0
+    }
+  ]
+}'
+                                        required
+                                    />
+                                </div>
+                                <div className="flex justify-end space-x-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowImportForm(false)}
+                                        className="px-4 py-2 border border-gray-300 rounded-lg text-slate-700 hover:bg-gray-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="btn-primary px-4 py-2"
+                                    >
+                                        Import Quiz
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
                 {showCreateForm && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
                             <h2 className="text-2xl font-bold text-slate-800 mb-4">Create New Quiz</h2>
                             <form onSubmit={handleCreateQuiz} className="space-y-6">
                                 <div>
@@ -270,6 +494,11 @@ export default function ManageQuizzes() {
                         <div key={quiz._id} className="card">
                             <h3 className="text-xl font-semibold text-slate-800 mb-2">{quiz.title}</h3>
                             <p className="text-slate-600 mb-4">{quiz.description}</p>
+                            {quiz.sourceDocument && (
+                                <p className="text-sm text-slate-500 mb-2">
+                                    Generated from: {quiz.sourceDocument.name}
+                                </p>
+                            )}
                             <div className="flex justify-between items-center">
                                 <span className="text-sm text-slate-500">
                                     {quiz.questions.length} questions

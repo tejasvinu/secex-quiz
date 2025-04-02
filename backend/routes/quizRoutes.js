@@ -3,6 +3,81 @@ const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const Quiz = require('../models/Quiz');
 const GameSession = require('../models/GameSession');
+const { upload, extractTextFromDocument, generateQuizFromText } = require('../utils/documentProcessor');
+
+// Create a quiz from document
+router.post('/create-from-document', protect, upload.single('document'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No document provided' });
+        }
+
+        // Extract text from the uploaded document
+        const text = await extractTextFromDocument(req.file);
+        
+        // Generate quiz questions using AI
+        const numQuestions = req.body.numQuestions || 10;
+        const questions = await generateQuizFromText(text, req.body.title, numQuestions);
+        
+        // Create the quiz in the database
+        const quiz = await Quiz.create({
+            title: req.body.title,
+            description: req.body.description || `Quiz generated from ${req.file.originalname}`,
+            questions,
+            timePerQuestion: req.body.timePerQuestion || 30,
+            creator: req.user._id,
+            isAiGenerated: true,
+            sourceDocument: {
+                name: req.file.originalname,
+                type: req.file.mimetype,
+                uploadDate: new Date()
+            }
+        });
+
+        res.status(201).json(quiz);
+    } catch (error) {
+        console.error('Error creating quiz from document:', error);
+        res.status(500).json({ message: 'Failed to create quiz from document', error: error.message });
+    }
+});
+
+// Create a quiz from existing JSON format
+router.post('/import-json', protect, async (req, res) => {
+    try {
+        const { quiz } = req.body;
+        
+        if (!quiz || !quiz.questions || !Array.isArray(quiz.questions)) {
+            return res.status(400).json({ message: 'Invalid quiz format' });
+        }
+
+        // Validate the quiz format
+        const isValidQuiz = quiz.questions.every(q => 
+            q.question && 
+            Array.isArray(q.options) && 
+            q.options.length === 4 && 
+            typeof q.correctOption === 'number' && 
+            q.correctOption >= 0 && 
+            q.correctOption < 4
+        );
+
+        if (!isValidQuiz) {
+            return res.status(400).json({ message: 'Invalid quiz question format' });
+        }
+
+        const newQuiz = await Quiz.create({
+            title: quiz.title || 'Imported Quiz',
+            description: quiz.description || 'Quiz imported from JSON format',
+            questions: quiz.questions,
+            timePerQuestion: quiz.timePerQuestion || 30,
+            creator: req.user._id
+        });
+
+        res.status(201).json(newQuiz);
+    } catch (error) {
+        console.error('Error importing quiz:', error);
+        res.status(500).json({ message: 'Failed to import quiz', error: error.message });
+    }
+});
 
 // Create a quiz
 router.post('/', protect, async (req, res) => {

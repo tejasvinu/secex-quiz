@@ -47,9 +47,9 @@ const quizSchema = new mongoose.Schema({
         default: false
     },
     sourceDocument: {
-        name: String,
-        type: String,
-        uploadDate: Date
+        name: { type: String },
+        type: { type: String },
+        uploadDate: { type: Date }
     }
 }, {
     timestamps: true
