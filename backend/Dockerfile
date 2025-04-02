@@ -1,4 +1,3 @@
-# filepath: c:\Users\tejasv\Documents\secex-quiz\backend\Dockerfile
 # Use an official Node runtime as a parent image
 FROM node:18-alpine AS builder
 
@@ -10,6 +9,7 @@ COPY package*.json ./
 
 # Install dependencies
 RUN npm install
+RUN npm install @google/generative-ai
 
 # Copy the rest of the application code
 COPY . .
