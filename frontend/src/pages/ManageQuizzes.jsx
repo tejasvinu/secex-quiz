@@ -4,6 +4,7 @@ import Navigation from '../components/Navigation';
 import LoadingSpinner from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import { XMarkIcon } from '@heroicons/react/24/solid';
 
 // Create an axios instance with baseURL
 const axiosInstance = axios.create({
@@ -24,6 +25,11 @@ export default function ManageQuizzes() {
     const [showStats, setShowStats] = useState(false);
     const [selectedQuiz, setSelectedQuiz] = useState(null);
     const [stats, setStats] = useState(null);
+    const [topicLoading, setTopicLoading] = useState(false);
+    const [documentLoading, setDocumentLoading] = useState(false);
+    const [importLoading, setImportLoading] = useState(false);
+    const [createLoading, setCreateLoading] = useState(false);
+    const [updateLoading, setUpdateLoading] = useState(false);
     const [newQuiz, setNewQuiz] = useState({
         title: '',
         description: '',
@@ -50,7 +56,6 @@ export default function ManageQuizzes() {
     const [openMenuId, setOpenMenuId] = useState(null);
     const navigate = useNavigate();
 
-    // Add click outside handler
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (!event.target.closest('.dropdown')) {
@@ -108,6 +113,7 @@ export default function ManageQuizzes() {
 
     const handleUpdateQuiz = async (e) => {
         e.preventDefault();
+        setUpdateLoading(true);
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
             await axiosInstance.put(`/api/quiz/${selectedQuiz._id}`, selectedQuiz, {
@@ -118,6 +124,8 @@ export default function ManageQuizzes() {
             fetchQuizzes();
         } catch (error) {
             toast.error('Failed to update quiz');
+        } finally {
+            setUpdateLoading(false);
         }
     };
 
@@ -152,6 +160,7 @@ export default function ManageQuizzes() {
 
     const handleDocumentUpload = async (e) => {
         e.preventDefault();
+        setDocumentLoading(true);
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
             const formData = new FormData();
@@ -184,11 +193,14 @@ export default function ManageQuizzes() {
             });
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to generate quiz from document');
+        } finally {
+            setDocumentLoading(false);
         }
     };
 
     const handleImportQuiz = async (e) => {
         e.preventDefault();
+        setImportLoading(true);
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
             let quizData;
@@ -210,6 +222,8 @@ export default function ManageQuizzes() {
             setImportQuiz({ jsonContent: '' });
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to import quiz');
+        } finally {
+            setImportLoading(false);
         }
     };
 
@@ -248,6 +262,7 @@ export default function ManageQuizzes() {
 
     const handleCreateQuiz = async (e) => {
         e.preventDefault();
+        setCreateLoading(true);
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
             await axiosInstance.post('/api/quiz', newQuiz, {
@@ -264,6 +279,8 @@ export default function ManageQuizzes() {
             });
         } catch (error) {
             toast.error('Failed to create quiz');
+        } finally {
+            setCreateLoading(false);
         }
     };
 
@@ -271,6 +288,7 @@ export default function ManageQuizzes() {
         e.preventDefault();
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
+            setTopicLoading(true);
             await axiosInstance.post('/api/quiz/create-from-topic', topicQuiz, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -286,6 +304,8 @@ export default function ManageQuizzes() {
             });
         } catch (error) {
             toast.error('Failed to create topic quiz');
+        } finally {
+            setTopicLoading(false);
         }
     };
 
@@ -351,9 +371,16 @@ export default function ManageQuizzes() {
                 </div>
 
                 {showTopicForm && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
-                            <h2 className="text-2xl font-bold text-slate-800 mb-4">Generate Quiz from Topic</h2>
+                    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
+                            <button
+                                onClick={() => setShowTopicForm(false)}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                                aria-label="Close topic quiz form"
+                            >
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                            <h2 className="text-2xl font-bold text-slate-800 mb-6">Generate Quiz from Topic</h2>
                             <form onSubmit={handleCreateTopicQuiz} className="space-y-6">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700">Title</label>
@@ -418,20 +445,24 @@ export default function ManageQuizzes() {
                                         />
                                     </div>
                                 </div>
-                                <div className="flex justify-end space-x-4">
+                                <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200">
                                     <button
                                         type="button"
                                         onClick={() => setShowTopicForm(false)}
-                                        className="px-4 py-2 border border-gray-300 rounded-lg text-slate-700 hover:bg-gray-50"
+                                        className="btn-secondary px-4 py-2"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
-                                        className="btn-primary px-4 py-2"
-                                        disabled={!topicQuiz.topic}
+                                        className="btn-primary px-4 py-2 min-w-[150px] flex justify-center items-center"
+                                        disabled={!topicQuiz.topic || topicLoading}
                                     >
-                                        Generate Quiz
+                                        {topicLoading ? (
+                                            <LoadingSpinner size="small" color="white" />
+                                        ) : (
+                                            'Generate Quiz'
+                                        )}
                                     </button>
                                 </div>
                             </form>
@@ -440,9 +471,16 @@ export default function ManageQuizzes() {
                 )}
 
                 {showDocumentUploadForm && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
-                            <h2 className="text-2xl font-bold text-slate-800 mb-4">Generate Quiz from Document</h2>
+                    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
+                            <button
+                                onClick={() => setShowDocumentUploadForm(false)}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                                aria-label="Close document upload form"
+                            >
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                            <h2 className="text-2xl font-bold text-slate-800 mb-6">Generate Quiz from Document</h2>
                             <form onSubmit={handleDocumentUpload} className="space-y-6">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700">Title</label>
@@ -506,20 +544,24 @@ export default function ManageQuizzes() {
                                         Supported formats: PDF, TXT, DOCX (Max 5MB)
                                     </p>
                                 </div>
-                                <div className="flex justify-end space-x-4">
+                                <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200">
                                     <button
                                         type="button"
                                         onClick={() => setShowDocumentUploadForm(false)}
-                                        className="px-4 py-2 border border-gray-300 rounded-lg text-slate-700 hover:bg-gray-50"
+                                        className="btn-secondary px-4 py-2"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
-                                        className="btn-primary px-4 py-2"
-                                        disabled={!documentUpload.file}
+                                        className="btn-primary px-4 py-2 min-w-[150px] flex justify-center items-center"
+                                        disabled={!documentUpload.file || documentLoading}
                                     >
-                                        Generate Quiz
+                                        {documentLoading ? (
+                                            <LoadingSpinner size="small" color="white" />
+                                        ) : (
+                                            'Generate Quiz'
+                                        )}
                                     </button>
                                 </div>
                             </form>
@@ -528,9 +570,16 @@ export default function ManageQuizzes() {
                 )}
 
                 {showImportForm && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
-                            <h2 className="text-2xl font-bold text-slate-800 mb-4">Import Quiz from JSON</h2>
+                    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
+                            <button
+                                onClick={() => setShowImportForm(false)}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                                aria-label="Close import form"
+                            >
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                            <h2 className="text-2xl font-bold text-slate-800 mb-6">Import Quiz from JSON</h2>
                             <form onSubmit={handleImportQuiz} className="space-y-6">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700">JSON Content</label>
@@ -554,19 +603,24 @@ export default function ManageQuizzes() {
                                         required
                                     />
                                 </div>
-                                <div className="flex justify-end space-x-4">
+                                <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200">
                                     <button
                                         type="button"
                                         onClick={() => setShowImportForm(false)}
-                                        className="px-4 py-2 border border-gray-300 rounded-lg text-slate-700 hover:bg-gray-50"
+                                        className="btn-secondary px-4 py-2"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
-                                        className="btn-primary px-4 py-2"
+                                        className="btn-primary px-4 py-2 min-w-[150px] flex justify-center items-center"
+                                        disabled={!importQuiz.jsonContent || importLoading}
                                     >
-                                        Import Quiz
+                                        {importLoading ? (
+                                            <LoadingSpinner size="small" color="white" />
+                                        ) : (
+                                            'Import Quiz'
+                                        )}
                                     </button>
                                 </div>
                             </form>
@@ -575,9 +629,16 @@ export default function ManageQuizzes() {
                 )}
 
                 {showCreateForm && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
-                            <h2 className="text-2xl font-bold text-slate-800 mb-4">Create New Quiz</h2>
+                    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
+                            <button
+                                onClick={() => setShowCreateForm(false)}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                                aria-label="Close create form"
+                            >
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                            <h2 className="text-2xl font-bold text-slate-800 mb-6">Create New Quiz</h2>
                             <form onSubmit={handleCreateQuiz} className="space-y-6">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700">Title</label>
@@ -680,20 +741,24 @@ export default function ManageQuizzes() {
                                     ))}
                                 </div>
 
-                                <div className="flex justify-end space-x-4">
+                                <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200">
                                     <button
                                         type="button"
                                         onClick={() => setShowCreateForm(false)}
-                                        className="px-4 py-2 border border-gray-300 rounded-lg text-slate-700 hover:bg-gray-50"
+                                        className="btn-secondary px-4 py-2"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
-                                        className="btn-primary px-4 py-2"
-                                        disabled={newQuiz.questions.length === 0}
+                                        className="btn-primary px-4 py-2 min-w-[150px] flex justify-center items-center"
+                                        disabled={newQuiz.questions.length === 0 || createLoading}
                                     >
-                                        Create Quiz
+                                        {createLoading ? (
+                                            <LoadingSpinner size="small" color="white" />
+                                        ) : (
+                                            'Create Quiz'
+                                        )}
                                     </button>
                                 </div>
                             </form>
@@ -702,9 +767,16 @@ export default function ManageQuizzes() {
                 )}
 
                 {showEditForm && selectedQuiz && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
-                            <h2 className="text-2xl font-bold text-slate-800 mb-4">Edit Quiz</h2>
+                    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
+                            <button
+                                onClick={() => setShowEditForm(false)}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                                aria-label="Close edit form"
+                            >
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                            <h2 className="text-2xl font-bold text-slate-800 mb-6">Edit Quiz</h2>
                             <form onSubmit={handleUpdateQuiz} className="space-y-6">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700">Title</label>
@@ -842,19 +914,24 @@ export default function ManageQuizzes() {
                                     </button>
                                 </div>
 
-                                <div className="flex justify-end space-x-4">
+                                <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200">
                                     <button
                                         type="button"
                                         onClick={() => setShowEditForm(false)}
-                                        className="px-4 py-2 border border-gray-300 rounded-lg text-slate-700 hover:bg-gray-50"
+                                        className="btn-secondary px-4 py-2"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
-                                        className="btn-primary px-4 py-2"
+                                        className="btn-primary px-4 py-2 min-w-[150px] flex justify-center items-center"
+                                        disabled={updateLoading}
                                     >
-                                        Save Changes
+                                        {updateLoading ? (
+                                            <LoadingSpinner size="small" color="white" />
+                                        ) : (
+                                            'Save Changes'
+                                        )}
                                     </button>
                                 </div>
                             </form>
@@ -863,9 +940,16 @@ export default function ManageQuizzes() {
                 )}
 
                 {showStats && stats && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
-                            <h2 className="text-2xl font-bold text-slate-800 mb-4">Quiz Statistics</h2>
+                    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
+                            <button
+                                onClick={() => setShowStats(false)}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                                aria-label="Close statistics"
+                            >
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                            <h2 className="text-2xl font-bold text-slate-800 mb-6">Quiz Statistics</h2>
                             <div className="grid grid-cols-2 gap-6 mb-6">
                                 <div className="bg-blue-50 p-4 rounded-lg">
                                     <h3 className="text-lg font-semibold text-blue-800">Total Games</h3>
@@ -904,10 +988,10 @@ export default function ManageQuizzes() {
                                 ))}
                             </div>
 
-                            <div className="mt-6 flex justify-end">
+                            <div className="mt-6 flex justify-end pt-4 border-t border-gray-200">
                                 <button
                                     onClick={() => setShowStats(false)}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg text-slate-700 hover:bg-gray-50"
+                                    className="btn-secondary px-4 py-2"
                                 >
                                     Close
                                 </button>
@@ -918,28 +1002,36 @@ export default function ManageQuizzes() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {quizzes.length === 0 ? (
-                        <div className="col-span-3 py-12 text-center">
-                            <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <div className="col-span-full py-16 text-center bg-white rounded-xl shadow-sm border border-gray-100">
+                            <div className="mx-auto w-20 h-20 bg-gradient-to-br from-blue-50 to-purple-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                                 </svg>
                             </div>
-                            <h3 className="text-xl font-semibold text-gray-700 mb-2">No assessments available</h3>
-                            <p className="text-gray-500 mb-6">Create your first assessment to begin</p>
-                            <button
-                                onClick={() => setShowCreateForm(true)}
-                                className="btn-primary px-6 py-2 transition-all duration-300 transform hover:scale-105"
-                            >
-                                Create New Assessment
-                            </button>
+                            <h3 className="text-xl font-semibold text-slate-700 mb-2">Your Assessment Library is Empty</h3>
+                            <p className="text-slate-500 mb-6 max-w-md mx-auto">Start by creating a new assessment manually, generating one from a topic or document, or importing an existing one.</p>
+                            <div className="flex justify-center space-x-4">
+                                <button
+                                    onClick={() => setShowCreateForm(true)}
+                                    className="btn-primary px-5 py-2 transition-all duration-300 transform hover:scale-105"
+                                >
+                                    Create New
+                                </button>
+                                <button
+                                    onClick={() => setShowTopicForm(true)}
+                                    className="btn-secondary px-5 py-2 transition-all duration-300 transform hover:scale-105"
+                                >
+                                    Generate from Topic
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         quizzes.map((quiz) => (
-                            <div 
-                                key={quiz._id} 
-                                className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-blue-100 transform hover:-translate-y-1"
+                            <div
+                                key={quiz._id}
+                                className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-lg hover:border-gray-200 transform hover:-translate-y-1 flex flex-col"
                             >
-                                <div className="p-6">
+                                <div className="p-6 flex-grow">
                                     <div className="flex justify-between items-start mb-4">
                                         <h3 className="text-xl font-semibold text-slate-800 hover:text-blue-600 transition-colors duration-200">{quiz.title}</h3>
                                         <div className="dropdown relative">
@@ -1008,7 +1100,7 @@ export default function ManageQuizzes() {
                                     {quiz.sourceDocument && (
                                         <div className="flex items-center mb-3 text-sm text-slate-500">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 00-2-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                             </svg>
                                             <span className="truncate" title={quiz.sourceDocument.name}>
                                                 {quiz.sourceDocument.name}
@@ -1049,7 +1141,7 @@ export default function ManageQuizzes() {
                                 <div className="bg-gray-50 p-4 border-t border-gray-100 flex">
                                     <button
                                         onClick={() => startGame(quiz._id)}
-                                        className="btn-gradient flex-1 py-2 text-sm font-medium flex items-center justify-center"
+                                        className="btn-gradient flex-1 py-2 text-sm font-medium flex items-center justify-center transition-all duration-300 hover:opacity-90"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />

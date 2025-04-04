@@ -1,5 +1,5 @@
-# Use an official Node runtime as a parent image
-FROM node:18-alpine
+# Use an official Node runtime as a parent image with specific version
+FROM node:18.20.0-alpine
 
 # Set the working directory
 WORKDIR /app/backend
@@ -7,7 +7,10 @@ WORKDIR /app/backend
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Install all dependencies (including dev dependencies) to ensure proper installation
+# First install the specific package we're having trouble with
+RUN npm install @google/generative-ai
+
+# Then install all other dependencies
 RUN npm install
 
 # Copy the rest of the application code

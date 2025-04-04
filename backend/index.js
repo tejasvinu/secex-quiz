@@ -29,8 +29,10 @@ const io = new Server(httpServer, {
     transports: ['websocket', 'polling'],
     path: '/socket.io/',
     allowEIO3: true,
-    pingTimeout: 60000,
-    pingInterval: 25000
+    pingTimeout: 30000, // Reduced from 60000
+    pingInterval: 10000, // Reduced from 25000
+    upgradeTimeout: 10000,
+    maxHttpBufferSize: 1e6
 });
 
 // Store io instance to be used in routes

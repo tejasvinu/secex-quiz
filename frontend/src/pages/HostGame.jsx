@@ -99,10 +99,10 @@ export default function HostGame() {
         }
     };
 
+    // Handle next question transition
     const handleNextQuestion = async () => {
         const nextQuestionIndex = (gameState.currentQuestion || 0) + 1;
         if (nextQuestionIndex >= gameState.quiz.questions.length) {
-            // End game
             try {
                 const token = JSON.parse(localStorage.getItem('user')).token;
                 await axiosInstance.post(
@@ -119,19 +119,24 @@ export default function HostGame() {
         }
 
         try {
+            // Emit socket event first for immediate UI update
+            socket.emit('next-question', { 
+                gameCode: gameState.code,
+                questionIndex: nextQuestionIndex
+            });
+
+            // Update local state immediately
+            setGameState(prev => ({ ...prev, currentQuestion: nextQuestionIndex }));
+            setTimeLeft(gameState.quiz.timePerQuestion);
+            setAnsweredPlayers(new Set());
+
+            // Make API call in background
             const token = JSON.parse(localStorage.getItem('user')).token;
             await axiosInstance.post(
                 `/api/quiz/game/${sessionId}/next-question`,
                 { questionIndex: nextQuestionIndex },
                 { headers: { Authorization: `Bearer ${token}` }}
             );
-            socket.emit('next-question', { 
-                gameCode: gameState.code,
-                questionIndex: nextQuestionIndex
-            });
-            setGameState(prev => ({ ...prev, currentQuestion: nextQuestionIndex }));
-            setTimeLeft(gameState.quiz.timePerQuestion);
-            setAnsweredPlayers(new Set());
         } catch (error) {
             toast.error('Failed to move to next question');
         }

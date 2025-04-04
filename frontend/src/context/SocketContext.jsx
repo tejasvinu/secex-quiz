@@ -18,12 +18,13 @@ export function SocketProvider({ children }) {
             const socketUrl = import.meta.env.VITE_SOCKET_URL;
             
             socketInstance = io(socketUrl, {
-                transports: ['websocket', 'polling'],
+                transports: ['websocket'],
                 path: '/socket.io',
-                reconnectionAttempts: 5,
-                reconnectionDelay: 1000,
-                timeout: 10000,
-                autoConnect: true
+                reconnectionAttempts: 3,
+                reconnectionDelay: 500,
+                timeout: 5000,
+                autoConnect: true,
+                forceNew: true
             });
 
             socketInstance.on('connect', () => {

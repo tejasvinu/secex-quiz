@@ -49,6 +49,23 @@ export default function PlayGame() {
         fetchGameState();
     }, [sessionId, username]);
 
+    const handleNewQuestion = ({ questionIndex }) => {
+        // Update game state immediately
+        setGameState(prev => ({
+            ...prev,
+            currentQuestion: questionIndex
+        }));
+        
+        // Pre-fetch and set the next question data
+        if (gameState?.quiz?.questions) {
+            const nextQuestion = gameState.quiz.questions[questionIndex];
+            setCurrentQuestion(nextQuestion);
+            setTimeLeft(gameState.quiz.timePerQuestion);
+            setSelectedAnswer(null);
+            setHasAnswered(false);
+        }
+    };
+
     useEffect(() => {
         if (!socket || !gameState?.code) return;
 
@@ -58,67 +75,11 @@ export default function PlayGame() {
             setGameState(prev => ({ 
                 ...prev, 
                 status: 'playing',
-                currentQuestion: 0 // Ensure currentQuestion is set to 0 when game starts
+                currentQuestion: 0
             }));
             setCurrentQuestion(gameState.quiz.questions[0]);
             setTimeLeft(gameState.quiz.timePerQuestion);
             toast.success('Game is starting!');
-        };
-
-        const handleNewQuestion = ({ questionIndex }) => {
-            setGameState(prev => ({
-                ...prev,
-                currentQuestion: questionIndex // Update the current question index in game state
-            }));
-            if (gameState?.quiz?.questions) {
-                setCurrentQuestion(gameState.quiz.questions[questionIndex]);
-                setTimeLeft(gameState.quiz.timePerQuestion);
-                setSelectedAnswer(null);
-                setHasAnswered(false);
-            }
-        };
-
-        const handlePlayerAnswered = ({ username: playerName }) => {
-            if (playerName === username) {
-                // Only show that answer was submitted, no correctness feedback
-                toast.success('Answer submitted!', { duration: 2000 });
-            } else {
-                toast.info(`${playerName} has answered!`, {
-                    icon: '✍️',
-                    position: 'bottom-right',
-                    duration: 2000
-                });
-            }
-        };
-
-        const handleGameOver = ({ finalScores }) => {
-            setGameState(prev => ({ 
-                ...prev, 
-                status: 'completed',
-                participants: finalScores || prev.participants
-            }));
-            setTimeLeft(null);
-            setCurrentQuestion(null);
-            setHasAnswered(false);
-
-            // Find user's final score and position
-            const sortedScores = [...(finalScores || prev.participants)].sort((a, b) => b.score - a.score);
-            const userResult = sortedScores.find(p => p.username === username);
-            const userPosition = sortedScores.findIndex(p => p.username === username) + 1;
-
-            // Show final score toast
-            toast.success(
-                `Game Over! Your final score: ${userResult?.score || 0} points (${getPositionText(userPosition)})`,
-                { duration: 5000 }
-            );
-        };
-
-        // Helper function to get position text
-        const getPositionText = (position) => {
-            if (position === 1) return '1st place';
-            if (position === 2) return '2nd place';
-            if (position === 3) return '3rd place';
-            return `${position}th place`;
         };
 
         socket.on('game-started', handleGameStarted);
@@ -126,13 +87,14 @@ export default function PlayGame() {
         socket.on('player-answered', handlePlayerAnswered);
         socket.on('game-over', handleGameOver);
 
+        // Cleanup listeners
         return () => {
             socket.off('game-started', handleGameStarted);
             socket.off('new-question', handleNewQuestion);
             socket.off('player-answered', handlePlayerAnswered);
             socket.off('game-over', handleGameOver);
         };
-    }, [socket, gameState?.code, username]);
+    }, [socket, gameState?.code]);
 
     // Timer effect with cleanup
     useEffect(() => {
