@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Menu, X, LogOut, User, LogIn, UserPlus, LayoutDashboard, ListChecks, Gamepad2, Home } from 'lucide-react';
+import { Menu, X, LogOut, User, LogIn, UserPlus, LayoutDashboard, ListChecks, Gamepad2, Home, ClipboardList } from 'lucide-react';
 
 // Main Navigation Component
 export default function Navigation() {
@@ -30,7 +30,8 @@ export default function Navigation() {
 
   const loggedInNavItems = [
     { path: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
-    { path: '/manage-quizzes', label: 'My Assessments', Icon: ListChecks },
+    { path: '/manage-quizzes', label: 'My Quizzes', Icon: ListChecks },
+    { path: '/manage-assessments', label: 'My Assessments', Icon: ClipboardList },
   ];
 
   const loggedOutNavItems = [

@@ -4,6 +4,9 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
+const quizRoutes = require('./routes/quizRoutes');
+const authRoutes = require('./routes/authRoutes');
+const assessmentRoutes = require('./routes/assessmentRoutes');
 
 // Load env vars
 dotenv.config();
@@ -85,8 +88,9 @@ io.on('connection', (socket) => {
 });
 
 // Routes
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/quiz', require('./routes/quizRoutes'));
+app.use('/api/auth', authRoutes);
+app.use('/api/quiz', quizRoutes);
+app.use('/api/assessment', assessmentRoutes);
 
 // Home route
 app.get('/', (req, res) => {

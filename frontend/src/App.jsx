@@ -8,9 +8,12 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import LandingPage from './pages/LandingPage';
 import ManageQuizzes from './pages/ManageQuizzes';
+import ManageAssessments from './pages/ManageAssessments';
+import TakeAssessment from './pages/TakeAssessment';
 import HostGame from './pages/HostGame';
 import JoinGame from './pages/JoinGame';
 import PlayGame from './pages/PlayGame';
+import AssessmentResponses from './pages/AssessmentResponses';
 import { useAuth } from './context/AuthContext';
 
 const PrivateRoute = ({ children }) => {
@@ -30,6 +33,7 @@ function AppContent() {
           <Route path="/register" element={<Register />} />
           <Route path="/join-game" element={<JoinGame />} />
           <Route path="/play-game/:sessionId" element={<PlayGame />} />
+          <Route path="/take-assessment/:id" element={<TakeAssessment />} />
           <Route
             path="/dashboard"
             element={
@@ -47,10 +51,26 @@ function AppContent() {
             }
           />
           <Route
+            path="/manage-assessments"
+            element={
+              <PrivateRoute>
+                <ManageAssessments />
+              </PrivateRoute>
+            }
+          />
+          <Route
             path="/host-game/:sessionId"
             element={
               <PrivateRoute>
                 <HostGame />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/assessment/:id/responses"
+            element={
+              <PrivateRoute>
+                <AssessmentResponses />
               </PrivateRoute>
             }
           />
