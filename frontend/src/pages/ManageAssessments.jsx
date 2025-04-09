@@ -90,8 +90,25 @@ export default function ManageAssessments() {
 
     const handleShareAssessment = (assessmentId) => {
         const url = `${window.location.origin}/take-assessment/${assessmentId}`;
-        navigator.clipboard.writeText(url);
-        alert('Assessment link copied to clipboard!');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url)
+                .then(() => alert('Assessment link copied to clipboard!'))
+                .catch((err) => alert('Failed to copy link: ' + err));
+        } else {
+            // Fallback for environments where clipboard API is unavailable
+            const textArea = document.createElement('textarea');
+            textArea.value = url;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                alert('Assessment link copied to clipboard!');
+            } catch (err) {
+                alert('Failed to copy link: ' + err);
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
     };
 
     if (loading) {
