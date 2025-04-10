@@ -169,11 +169,29 @@ export default function ManageAssessments() {
         navigate(`/assessment/${assessmentId}/responses`);
     };
 
-    const handleShareAssessment = (assessmentId) => {
+    const handleShareAssessment = async (assessmentId) => {
         const url = `${window.location.origin}/take-assessment/${assessmentId}`;
-        navigator.clipboard.writeText(url)
-            .then(() => toast.success('Assessment link copied to clipboard!'))
-            .catch((err) => toast.error('Failed to copy link: ' + err));
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(url);
+                toast.success('Assessment link copied to clipboard!');
+            } else {
+                // Fallback for browsers where clipboard API is not available
+                const textArea = document.createElement('textarea');
+                textArea.value = url;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    toast.success('Assessment link copied to clipboard!');
+                } catch (err) {
+                    toast.error('Failed to copy link. Please copy it manually.');
+                }
+                document.body.removeChild(textArea);
+            }
+        } catch (err) {
+            toast.error('Failed to copy link: ' + err.message);
+        }
     };
 
     const handleEditAssessment = (assessment) => {

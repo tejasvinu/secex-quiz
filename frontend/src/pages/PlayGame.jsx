@@ -25,6 +25,7 @@ export default function PlayGame() {
     const [hasAnswered, setHasAnswered] = useState(false);
     const username = location.state?.username;
 
+    // Initial game state fetch
     useEffect(() => {
         if (!username) {
             toast.error('Username not provided');
@@ -34,12 +35,16 @@ export default function PlayGame() {
         const fetchGameState = async () => {
             try {
                 const response = await axiosInstance.get(`/api/quiz/game/${sessionId}`);
-                setGameState(response.data);
-                if (response.data.status === 'playing') {
-                    setCurrentQuestion(response.data.quiz.questions[response.data.currentQuestion]);
-                    setTimeLeft(response.data.quiz.timePerQuestion);
+                const data = response.data;
+                setGameState(data);
+                
+                // Initialize current question if game is in progress
+                if (data.status === 'playing' && data.currentQuestion >= 0) {
+                    setCurrentQuestion(data.quiz.questions[data.currentQuestion]);
+                    setTimeLeft(data.quiz.timePerQuestion);
                 }
             } catch (error) {
+                console.error('Failed to fetch game state:', error);
                 toast.error('Failed to fetch game state');
             } finally {
                 setLoading(false);
@@ -49,37 +54,58 @@ export default function PlayGame() {
         fetchGameState();
     }, [sessionId, username]);
 
-    const handleNewQuestion = ({ questionIndex }) => {
-        // Update game state immediately
-        setGameState(prev => ({
-            ...prev,
-            currentQuestion: questionIndex
-        }));
-        
-        // Pre-fetch and set the next question data
-        if (gameState?.quiz?.questions) {
-            const nextQuestion = gameState.quiz.questions[questionIndex];
-            setCurrentQuestion(nextQuestion);
-            setTimeLeft(gameState.quiz.timePerQuestion);
-            setSelectedAnswer(null);
-            setHasAnswered(false);
-        }
-    };
-
+    // Socket event handlers
     useEffect(() => {
-        if (!socket || !gameState?.code) return;
+        if (!socket || !gameState?.code || !username) return;
 
+        // Join the game room
         socket.emit('join-game', gameState.code);
 
         const handleGameStarted = () => {
-            setGameState(prev => ({ 
-                ...prev, 
-                status: 'playing',
-                currentQuestion: 0
-            }));
-            setCurrentQuestion(gameState.quiz.questions[0]);
-            setTimeLeft(gameState.quiz.timePerQuestion);
+            setGameState(prev => {
+                const updatedState = { 
+                    ...prev, 
+                    status: 'playing',
+                    currentQuestion: 0
+                };
+                setCurrentQuestion(updatedState.quiz.questions[0]);
+                setTimeLeft(updatedState.quiz.timePerQuestion);
+                setHasAnswered(false);
+                setSelectedAnswer(null);
+                return updatedState;
+            });
             toast.success('Game is starting!');
+        };
+
+        const handleNewQuestion = ({ questionIndex }) => {
+            setGameState(prev => {
+                const updatedState = {
+                    ...prev,
+                    currentQuestion: questionIndex
+                };
+                setCurrentQuestion(updatedState.quiz.questions[questionIndex]);
+                setTimeLeft(updatedState.quiz.timePerQuestion);
+                setHasAnswered(false);
+                setSelectedAnswer(null);
+                return updatedState;
+            });
+        };
+
+        const handlePlayerAnswered = ({ username: answeredUser }) => {
+            if (username !== answeredUser) {
+                toast(`${answeredUser} submitted their answer!`, {
+                    icon: '✍️'
+                });
+            }
+        };
+
+        const handleGameOver = ({ finalScores }) => {
+            setGameState(prev => ({
+                ...prev,
+                status: 'completed',
+                participants: finalScores
+            }));
+            setTimeLeft(0);
         };
 
         socket.on('game-started', handleGameStarted);
@@ -87,16 +113,15 @@ export default function PlayGame() {
         socket.on('player-answered', handlePlayerAnswered);
         socket.on('game-over', handleGameOver);
 
-        // Cleanup listeners
         return () => {
             socket.off('game-started', handleGameStarted);
             socket.off('new-question', handleNewQuestion);
             socket.off('player-answered', handlePlayerAnswered);
             socket.off('game-over', handleGameOver);
         };
-    }, [socket, gameState?.code]);
+    }, [socket, gameState?.code, username]);
 
-    // Timer effect with cleanup
+    // Timer effect
     useEffect(() => {
         let timerId;
 
@@ -105,6 +130,7 @@ export default function PlayGame() {
         timerId = setInterval(() => {
             setTimeLeft((prev) => {
                 if (prev <= 1) {
+                    clearInterval(timerId);
                     if (!hasAnswered) {
                         handleAnswer(-1); // Auto-submit on timeout
                     }
@@ -152,7 +178,6 @@ export default function PlayGame() {
         );
     }
 
-    // Update the render section for the options to include data-option attribute
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 text-white p-4">
             <div className="max-w-3xl mx-auto">
@@ -171,7 +196,6 @@ export default function PlayGame() {
                         <div className="flex justify-between items-center">
                             <div>
                                 <h2 className="text-2xl font-bold">Question {gameState.currentQuestion + 1}</h2>
-                                {/* Remove score display */}
                             </div>
                             <div className="text-xl font-mono bg-white/10 px-4 py-2 rounded-lg">
                                 {timeLeft}s
@@ -190,7 +214,7 @@ export default function PlayGame() {
                                         className={`p-4 rounded-lg text-left transition-all duration-200
                                             ${hasAnswered
                                                 ? index === selectedAnswer
-                                                    ? 'bg-blue-500/50' // Change color to neutral feedback
+                                                    ? 'bg-blue-500/50'
                                                     : 'bg-white/5'
                                                 : 'bg-white/5 hover:bg-white/20'
                                             }
@@ -218,7 +242,6 @@ export default function PlayGame() {
                             </h1>
                             <p className="text-gray-300 text-lg mb-8">Thank you for participating</p>
 
-                            {/* Trophy animation for winner */}
                             {gameState.participants.sort((a, b) => b.score - a.score)[0]?.username === username && (
                                 <div className="flex justify-center mb-6 animate-bounce">
                                     <svg className="w-16 h-16 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
@@ -280,7 +303,6 @@ export default function PlayGame() {
                                 </div>
                             </div>
 
-                            {/* Navigation buttons */}
                             <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
                                 <Link
                                     to="/join-game"
