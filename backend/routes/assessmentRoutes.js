@@ -80,15 +80,20 @@ router.get('/:id', async (req, res) => {
 // Calculate score for quiz-type questions
 const calculateScore = (questions, answers) => {
     let totalScore = 0;
-    answers.forEach(answer => {
-        const question = questions[answer.questionIndex];
-        if (question.questionType === 'quiz') {
-            answer.isCorrect = answer.selectedOption === question.correctOption;
-            answer.points = answer.isCorrect ? question.points : 0;
-            totalScore += answer.points;
-        }
+    let totalPossibleScore = 0;
+    
+    answers.forEach((answer, index) => {
+        const question = questions[index];
+        if (!question) return;
+        
+        answer.isCorrect = answer.selectedOption === question.correctOption;
+        answer.points = answer.isCorrect ? question.points : 0;
+        totalScore += answer.points;
+        totalPossibleScore += question.points;
     });
-    return totalScore;
+
+    // Convert to percentage
+    return totalPossibleScore > 0 ? Math.round((totalScore / totalPossibleScore) * 100) : 0;
 };
 
 // Submit a response to an assessment
