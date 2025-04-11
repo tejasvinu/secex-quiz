@@ -182,4 +182,57 @@ router.get('/:id/results', protect, async (req, res) => {
     }
 });
 
+// Toggle assessment status (enable/disable)
+router.patch('/:id/toggle-status', protect, async (req, res) => {
+    try {
+        const assessment = await Assessment.findOne({ 
+            _id: req.params.id,
+            creator: req.user._id
+        });
+
+        if (!assessment) {
+            return res.status(404).json({ message: 'Assessment not found' });
+        }
+
+        assessment.isActive = !assessment.isActive;
+        await assessment.save();
+
+        res.json({ 
+            message: `Assessment ${assessment.isActive ? 'enabled' : 'disabled'} successfully`,
+            isActive: assessment.isActive 
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to toggle assessment status', error: error.message });
+    }
+});
+
+// Update an existing assessment
+router.put('/:id', protect, async (req, res) => {
+    try {
+        const { title, description, questions, assessmentType, timeLimit, passingScore } = req.body;
+
+        // Find the assessment by ID and ensure it belongs to the logged-in user
+        const assessment = await Assessment.findOne({ _id: req.params.id, creator: req.user._id });
+
+        if (!assessment) {
+            return res.status(404).json({ message: 'Assessment not found' });
+        }
+
+        // Update the assessment fields
+        assessment.title = title || assessment.title;
+        assessment.description = description || assessment.description;
+        assessment.questions = questions || assessment.questions;
+        assessment.assessmentType = assessmentType || assessment.assessmentType;
+        assessment.timeLimit = timeLimit || assessment.timeLimit;
+        assessment.passingScore = passingScore || assessment.passingScore;
+
+        await assessment.save();
+
+        res.json({ message: 'Assessment updated successfully', assessment });
+    } catch (error) {
+        console.error('Failed to update assessment:', error);
+        res.status(500).json({ message: 'Failed to update assessment', error: error.message });
+    }
+});
+
 module.exports = router;

@@ -51,29 +51,16 @@ export default function TakeAssessment() {
     const fetchAssessment = async () => {
         try {
             const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/assessment/${id}`);
-            setAssessment(response.data);
-            
-            if (response.data.assessmentType === 'survey') {
-                setFormData(prev => ({
-                    ...prev,
-                    responses: response.data.questions.map(q => ({ 
-                        question: q.question, 
-                        response: '', 
-                        comments: '' 
-                    }))
-                }));
-            } else {
-                setFormData(prev => ({
-                    ...prev,
-                    answers: response.data.questions.map((_, index) => ({
-                        questionIndex: index,
-                        selectedOption: null
-                    }))
-                }));
+            if (!response.data.isActive) {
+                toast.error('This assessment is currently not available');
+                navigate('/');
+                return;
             }
+            setAssessment(response.data);
         } catch (error) {
             console.error('Failed to fetch assessment:', error);
             toast.error('Failed to load assessment');
+            navigate('/');
         } finally {
             setLoading(false);
         }

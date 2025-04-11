@@ -287,6 +287,24 @@ export default function ManageAssessments() {
         toast.success('Question removed.');
     };
 
+    const handleToggleStatus = async (assessment) => {
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            const response = await axios.patch(
+                `${import.meta.env.VITE_API_URL}/api/assessment/${assessment._id}/toggle-status`,
+                {},
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+            toast.success(response.data.message);
+            fetchAssessments();
+        } catch (error) {
+            console.error('Failed to toggle assessment status:', error);
+            toast.error('Failed to update assessment status');
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50">
@@ -536,6 +554,125 @@ export default function ManageAssessments() {
                     </div>
                 )}
 
+                {showEditForm && (
+                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
+                            <div className="flex justify-between items-start mb-6">
+                                <h2 className="text-2xl font-semibold text-slate-800">Edit Assessment</h2>
+                                <button onClick={() => setShowEditForm(false)} className="text-gray-400 hover:text-gray-600">
+                                    <XMarkIcon className="h-6 w-6" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleUpdateAssessment} className="space-y-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Title</label>
+                                    <input
+                                        type="text"
+                                        value={selectedAssessment.title}
+                                        onChange={(e) => setSelectedAssessment(prev => ({ ...prev, title: e.target.value }))}
+                                        className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Description</label>
+                                    <textarea
+                                        value={selectedAssessment.description}
+                                        onChange={(e) => setSelectedAssessment(prev => ({ ...prev, description: e.target.value }))}
+                                        className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                        rows="3"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Assessment Type</label>
+                                    <div className="flex gap-4">
+                                        <label className="inline-flex items-center">
+                                            <input
+                                                type="radio"
+                                                value="survey"
+                                                checked={selectedAssessment.assessmentType === 'survey'}
+                                                onChange={(e) => setSelectedAssessment(prev => ({ ...prev, assessmentType: e.target.value }))}
+                                                className="form-radio h-4 w-4 text-blue-600"
+                                            />
+                                            <span className="ml-2">Survey</span>
+                                        </label>
+                                        <label className="inline-flex items-center">
+                                            <input
+                                                type="radio"
+                                                value="quiz"
+                                                checked={selectedAssessment.assessmentType === 'quiz'}
+                                                onChange={(e) => setSelectedAssessment(prev => ({ ...prev, assessmentType: e.target.value }))}
+                                                className="form-radio h-4 w-4 text-blue-600"
+                                            />
+                                            <span className="ml-2">Quiz</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {selectedAssessment.assessmentType === 'quiz' && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700">Time Limit (minutes)</label>
+                                            <input
+                                                type="number"
+                                                value={selectedAssessment.timeLimit || ''}
+                                                onChange={(e) => setSelectedAssessment(prev => ({ 
+                                                    ...prev, 
+                                                    timeLimit: e.target.value ? Number(e.target.value) : null 
+                                                }))}
+                                                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                                min="1"
+                                                placeholder="Optional"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700">Passing Score (%)</label>
+                                            <input
+                                                type="number"
+                                                value={selectedAssessment.passingScore || ''}
+                                                onChange={(e) => setSelectedAssessment(prev => ({ 
+                                                    ...prev, 
+                                                    passingScore: e.target.value ? Number(e.target.value) : null 
+                                                }))}
+                                                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                                min="0"
+                                                max="100"
+                                                placeholder="Optional"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-end space-x-4 pt-6 mt-6 border-t border-gray-200">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEditForm(false)}
+                                        className="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="inline-flex items-center justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                                        disabled={submitting}
+                                    >
+                                        {submitting ? (
+                                            <>
+                                                <LoadingSpinner size="small" className="mr-2" />
+                                                Updating...
+                                            </>
+                                        ) : 'Update Assessment'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
                 {/* Assessment List */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {assessments.length === 0 ? (
@@ -595,6 +732,15 @@ export default function ManageAssessments() {
                                                         </button>
                                                         <button
                                                             onClick={() => {
+                                                                handleToggleStatus(assessment);
+                                                                setOpenMenuId(null);
+                                                            }}
+                                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                        >
+                                                            {assessment.isActive ? 'Disable' : 'Enable'} Assessment
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
                                                                 setSelectedAssessment(assessment);
                                                                 setShowDeleteConfirmation(true);
                                                                 setOpenMenuId(null);
@@ -610,6 +756,9 @@ export default function ManageAssessments() {
                                     </div>
                                     <p className="text-gray-600 mb-4 line-clamp-2">{assessment.description}</p>
                                     <div className="flex flex-wrap gap-2">
+                                        <span className={`text-sm ${assessment.isActive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'} px-2 py-1 rounded-full`}>
+                                            {assessment.isActive ? 'Active' : 'Inactive'}
+                                        </span>
                                         <span className="text-sm bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
                                             {assessment.assessmentType === 'survey' ? 'Survey' : 'Quiz'}
                                         </span>
