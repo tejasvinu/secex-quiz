@@ -40,6 +40,17 @@ export default function ManageAssessments() {
         fetchAssessments();
     }, []);
 
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (openMenuId && !event.target.closest('.assessment-menu')) {
+                setOpenMenuId(null);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [openMenuId]);
+
     const fetchAssessments = async () => {
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
@@ -687,68 +698,103 @@ export default function ManageAssessments() {
                         </div>
                     ) : (
                         assessments.map((assessment) => (
-                            <div key={assessment._id} className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-lg hover:border-gray-200 transform hover:-translate-y-1">
+                            <div key={assessment._id} className="bg-white rounded-xl shadow-md border border-gray-100 overflow-visible transition-all duration-300 hover:shadow-lg hover:border-gray-200 transform hover:-translate-y-1">
                                 <div className="p-6">
                                     <div className="flex justify-between items-start mb-4">
-                                        <h3 className="text-lg font-semibold text-slate-800">{assessment.title}</h3>
-                                        <div className="relative">
+                                        <h3 className="text-lg font-semibold text-slate-800 flex-1 pr-4">{assessment.title}</h3>
+                                        <div className="relative assessment-menu">
                                             <button
-                                                onClick={() => setOpenMenuId(assessment._id)}
-                                                className="text-gray-400 hover:text-gray-600 p-1"
+                                                onClick={() => setOpenMenuId(openMenuId === assessment._id ? null : assessment._id)}
+                                                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
+                                                aria-label="Assessment options"
                                             >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
                                                     <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                                                 </svg>
                                             </button>
                                             {openMenuId === assessment._id && (
-                                                <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
-                                                    <div className="py-1">
-                                                        <button
-                                                            onClick={() => {
-                                                                handleEditAssessment(assessment);
-                                                                setOpenMenuId(null);
-                                                            }}
-                                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                                        >
-                                                            Edit Assessment
-                                                        </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                handleShareAssessment(assessment._id);
-                                                                setOpenMenuId(null);
-                                                            }}
-                                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                                        >
-                                                            Share Link
-                                                        </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                handleViewResponses(assessment._id);
-                                                                setOpenMenuId(null);
-                                                            }}
-                                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                                        >
-                                                            View Responses
-                                                        </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                handleToggleStatus(assessment);
-                                                                setOpenMenuId(null);
-                                                            }}
-                                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                                        >
-                                                            {assessment.isActive ? 'Disable' : 'Enable'} Assessment
-                                                        </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                setSelectedAssessment(assessment);
-                                                                setShowDeleteConfirmation(true);
-                                                                setOpenMenuId(null);
-                                                            }}
-                                                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                                                        >
-                                                            Delete Assessment
-                                                        </button>
+                                                <div 
+                                                    className="absolute right-0 mt-2 w-56 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50"
+                                                    style={{
+                                                        transform: 'translateY(0)',
+                                                        maxHeight: '90vh',
+                                                        overflowY: 'auto'
+                                                    }}
+                                                >
+                                                    <div className="py-1 divide-y divide-gray-100">
+                                                        <div className="px-4 py-3 bg-gray-50 rounded-t-lg">
+                                                            <p className="text-sm font-medium text-gray-900">Assessment Options</p>
+                                                        </div>
+                                                        <div>
+                                                            <button
+                                                                onClick={() => {
+                                                                    handleEditAssessment(assessment);
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                                                            >
+                                                                <PencilIcon className="h-5 w-5 text-gray-500" /> 
+                                                                <div>
+                                                                    <div className="font-medium">Edit Assessment</div>
+                                                                    <div className="text-xs text-gray-500">Modify assessment details and questions</div>
+                                                                </div>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    handleShareAssessment(assessment._id);
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                                                            >
+                                                                <ShareIcon className="h-5 w-5 text-gray-500" />
+                                                                <div>
+                                                                    <div className="font-medium">Share Link</div>
+                                                                    <div className="text-xs text-gray-500">Copy assessment URL to clipboard</div>
+                                                                </div>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    handleViewResponses(assessment._id);
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                                                            >
+                                                                <EyeIcon className="h-5 w-5 text-gray-500" />
+                                                                <div>
+                                                                    <div className="font-medium">View Responses</div>
+                                                                    <div className="text-xs text-gray-500">See all participant submissions</div>
+                                                                </div>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    handleToggleStatus(assessment);
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                                                            >
+                                                                <DocumentDuplicateIcon className="h-5 w-5 text-gray-500" />
+                                                                <div>
+                                                                    <div className="font-medium">{assessment.isActive ? 'Disable' : 'Enable'} Assessment</div>
+                                                                    <div className="text-xs text-gray-500">{assessment.isActive ? 'Prevent' : 'Allow'} new submissions</div>
+                                                                </div>
+                                                            </button>
+                                                        </div>
+                                                        <div>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedAssessment(assessment);
+                                                                    setShowDeleteConfirmation(true);
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                                className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                                                            >
+                                                                <TrashIcon className="h-5 w-5 text-red-500" />
+                                                                <div>
+                                                                    <div className="font-medium">Delete Assessment</div>
+                                                                    <div className="text-xs text-red-500">This action cannot be undone</div>
+                                                                </div>
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
