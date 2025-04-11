@@ -216,9 +216,14 @@ export default function ManageAssessments() {
         const loadingToast = toast.loading('Updating assessment...');
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
+            // Only send title and description in the update
+            const updateData = {
+                title: selectedAssessment.title,
+                description: selectedAssessment.description
+            };
             await axios.put(
                 `${import.meta.env.VITE_API_URL}/api/assessment/${selectedAssessment._id}`,
-                selectedAssessment,
+                updateData,
                 {
                     headers: { Authorization: `Bearer ${token}` }
                 }
@@ -569,7 +574,10 @@ export default function ManageAssessments() {
                     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                         <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
                             <div className="flex justify-between items-start mb-6">
-                                <h2 className="text-2xl font-semibold text-slate-800">Edit Assessment</h2>
+                                <div>
+                                    <h2 className="text-2xl font-semibold text-slate-800">Edit Assessment</h2>
+                                    <p className="text-sm text-gray-500 mt-1">You can modify the title and description of this assessment.</p>
+                                </div>
                                 <button onClick={() => setShowEditForm(false)} className="text-gray-400 hover:text-gray-600">
                                     <XMarkIcon className="h-6 w-6" />
                                 </button>
@@ -597,66 +605,6 @@ export default function ManageAssessments() {
                                         required
                                     />
                                 </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">Assessment Type</label>
-                                    <div className="flex gap-4">
-                                        <label className="inline-flex items-center">
-                                            <input
-                                                type="radio"
-                                                value="survey"
-                                                checked={selectedAssessment.assessmentType === 'survey'}
-                                                onChange={(e) => setSelectedAssessment(prev => ({ ...prev, assessmentType: e.target.value }))}
-                                                className="form-radio h-4 w-4 text-blue-600"
-                                            />
-                                            <span className="ml-2">Survey</span>
-                                        </label>
-                                        <label className="inline-flex items-center">
-                                            <input
-                                                type="radio"
-                                                value="quiz"
-                                                checked={selectedAssessment.assessmentType === 'quiz'}
-                                                onChange={(e) => setSelectedAssessment(prev => ({ ...prev, assessmentType: e.target.value }))}
-                                                className="form-radio h-4 w-4 text-blue-600"
-                                            />
-                                            <span className="ml-2">Quiz</span>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                {selectedAssessment.assessmentType === 'quiz' && (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700">Time Limit (minutes)</label>
-                                            <input
-                                                type="number"
-                                                value={selectedAssessment.timeLimit || ''}
-                                                onChange={(e) => setSelectedAssessment(prev => ({ 
-                                                    ...prev, 
-                                                    timeLimit: e.target.value ? Number(e.target.value) : null 
-                                                }))}
-                                                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
-                                                min="1"
-                                                placeholder="Optional"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700">Passing Score (%)</label>
-                                            <input
-                                                type="number"
-                                                value={selectedAssessment.passingScore || ''}
-                                                onChange={(e) => setSelectedAssessment(prev => ({ 
-                                                    ...prev, 
-                                                    passingScore: e.target.value ? Number(e.target.value) : null 
-                                                }))}
-                                                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
-                                                min="0"
-                                                max="100"
-                                                placeholder="Optional"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
 
                                 <div className="flex justify-end space-x-4 pt-6 mt-6 border-t border-gray-200">
                                     <button

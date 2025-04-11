@@ -18,6 +18,7 @@ export default function TakeAssessment() {
         participantEmail: '',
         participantDepartment: '',
         participantDesignation: '',
+        participantCentre: '', // Add new field
         responses: [],
         additionalFeedback: '',
         answers: [],
@@ -107,6 +108,7 @@ export default function TakeAssessment() {
                 participantEmail: formData.participantEmail,
                 participantDepartment: formData.participantDepartment,
                 participantDesignation: formData.participantDesignation,
+                participantCentre: formData.participantCentre,
                 experience: formData.experience
             };
 
@@ -162,14 +164,14 @@ export default function TakeAssessment() {
 
     if (currentStep === 'details') {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
-                <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
-                    <div className="px-6 py-8 sm:px-10">
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/50 py-12 px-4 sm:px-6 lg:px-8">
+                <div className="max-w-2xl mx-auto">
+                    <div className="card-enhanced p-8">
                         <div className="text-center mb-8">
-                            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">{assessment.title}</h1>
-                            <p className="mt-2 text-sm text-gray-600">{assessment.description}</p>
+                            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">{assessment.title}</h1>
+                            <p className="text-slate-600">{assessment.description}</p>
                             {assessment.assessmentType !== 'survey' && (
-                                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                                <div className="mt-6 bg-blue-50 rounded-lg p-4 border border-blue-100">
                                     <p className="text-sm text-blue-800">
                                         This is a {assessment.assessmentType} assessment. 
                                         {assessment.timeLimit && ` You will have ${assessment.timeLimit} minutes to complete it.`}
@@ -182,77 +184,104 @@ export default function TakeAssessment() {
                         <StepIndicator current={1} total={2} />
 
                         <form onSubmit={handleDetailsSubmit} className="space-y-6">
-                            <h2 className="text-lg font-semibold text-slate-800 border-b pb-2 mb-6">Your Information</h2>
+                            <div className="field-group">
+                                <h2 className="text-lg font-semibold text-slate-800 pb-2 border-b border-gray-200">Your Information</h2>
+                                
+                                <div className="field-group-horizontal">
+                                    <div className="input-group">
+                                        <label htmlFor="participantName" className="label-enhanced">Full Name</label>
+                                        <input
+                                            id="participantName"
+                                            type="text"
+                                            value={formData.participantName}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, participantName: e.target.value }))}
+                                            className="form-input-enhanced"
+                                            placeholder="Enter your full name"
+                                            required
+                                        />
+                                    </div>
 
-                            <div>
-                                <label htmlFor="participantName" className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                                <input
-                                    id="participantName"
-                                    type="text"
-                                    value={formData.participantName}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, participantName: e.target.value }))}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Email</label>
-                                <input
-                                    type="email"
-                                    value={formData.participantEmail}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, participantEmail: e.target.value }))}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                    required
-                                />
-                            </div>
-                            
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Department</label>
-                                <input
-                                    type="text"
-                                    value={formData.participantDepartment}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, participantDepartment: e.target.value }))}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Designation</label>
-                                <input
-                                    type="text"
-                                    value={formData.participantDesignation}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, participantDesignation: e.target.value }))}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                    required
-                                />
-                            </div>
-
-                            {assessment.assessmentType !== 'survey' && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Experience Level</label>
-                                    <select
-                                        value={formData.experience}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, experience: e.target.value }))}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                        required
-                                    >
-                                        <option value="beginner">Beginner</option>
-                                        <option value="intermediate">Intermediate</option>
-                                        <option value="advanced">Advanced</option>
-                                        <option value="expert">Expert</option>
-                                    </select>
+                                    <div className="input-group">
+                                        <label htmlFor="participantEmail" className="label-enhanced">Email Address</label>
+                                        <input
+                                            id="participantEmail"
+                                            type="email"
+                                            value={formData.participantEmail}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, participantEmail: e.target.value }))}
+                                            className="form-input-enhanced"
+                                            placeholder="your@email.com"
+                                            required
+                                        />
+                                    </div>
                                 </div>
-                            )}
 
-                            <div className="pt-5">
+                                <div className="field-group-horizontal">
+                                    <div className="input-group">
+                                        <label htmlFor="participantDepartment" className="label-enhanced">Department</label>
+                                        <input
+                                            id="participantDepartment"
+                                            type="text"
+                                            value={formData.participantDepartment}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, participantDepartment: e.target.value }))}
+                                            className="form-input-enhanced"
+                                            placeholder="Your department"
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className="input-group">
+                                        <label htmlFor="participantDesignation" className="label-enhanced">Designation</label>
+                                        <input
+                                            id="participantDesignation"
+                                            type="text"
+                                            value={formData.participantDesignation}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, participantDesignation: e.target.value }))}
+                                            className="form-input-enhanced"
+                                            placeholder="Your designation"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="input-group">
+                                    <label htmlFor="participantCentre" className="label-enhanced">Centre</label>
+                                    <input
+                                        id="participantCentre"
+                                        type="text"
+                                        value={formData.participantCentre}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, participantCentre: e.target.value }))}
+                                        className="form-input-enhanced"
+                                        placeholder="Your centre"
+                                        required
+                                    />
+                                </div>
+
+                                {assessment.assessmentType !== 'survey' && (
+                                    <div className="input-group">
+                                        <label htmlFor="experience" className="label-enhanced">Experience Level</label>
+                                        <select
+                                            id="experience"
+                                            value={formData.experience}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, experience: e.target.value }))}
+                                            className="form-input-enhanced"
+                                            required
+                                        >
+                                            <option value="beginner">Beginner</option>
+                                            <option value="intermediate">Intermediate</option>
+                                            <option value="advanced">Advanced</option>
+                                            <option value="expert">Expert</option>
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="pt-6 border-t border-gray-200">
                                 <div className="flex justify-end">
-                                    <button
-                                        type="submit"
-                                        className="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                                    >
-                                        Next: Questions
+                                    <button type="submit" className="btn-primary-enhanced">
+                                        Continue to Questions
+                                        <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                        </svg>
                                     </button>
                                 </div>
                             </div>
@@ -264,84 +293,108 @@ export default function TakeAssessment() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-3xl mx-auto">
-                <div className="text-center mb-8">
-                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">{assessment.title}</h1>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/50 py-12 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-4xl mx-auto">
+                <div className="card-enhanced p-8 mb-8 text-center">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">{assessment.title}</h1>
+                    <p className="text-slate-600 max-w-2xl mx-auto">{assessment.description}</p>
                     {timer !== null && (
-                        <div className={`mt-4 text-lg font-semibold ${timer < 60 ? 'text-red-600' : 'text-blue-600'}`}>
-                            Time Remaining: {formatTime(timer)}
+                        <div className="mt-6">
+                            <div className={`inline-flex items-center px-4 py-2 rounded-full ${
+                                timer < 300 
+                                    ? 'bg-red-50 text-red-700 animate-soft-pulse' 
+                                    : 'bg-blue-50 text-blue-700'
+                            }`}>
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="font-semibold">{formatTime(timer)}</span>
+                            </div>
                         </div>
                     )}
                 </div>
 
                 <StepIndicator current={2} total={2} />
 
-                <form onSubmit={handleSubmit} className="space-y-8">
+                <form onSubmit={handleSubmit} className="space-y-6">
                     {assessment.questions.map((question, index) => (
-                        <div key={index} className="bg-white shadow-lg rounded-xl overflow-hidden">
-                            <div className="px-6 py-6 sm:px-8">
-                                <label className="block text-lg font-semibold text-slate-800 mb-5">
-                                    {index + 1}. {question.question}
-                                </label>
+                        <div key={index} className="card-enhanced p-6 sm:p-8 hover:shadow-lg transition-all duration-300">
+                            <div className="flex items-start gap-4">
+                                <span className="flex-shrink-0 bg-gradient-to-br from-blue-500 to-blue-600 text-white font-semibold rounded-full w-8 h-8 flex items-center justify-center shadow-sm">
+                                    {index + 1}
+                                </span>
+                                <div className="flex-1 space-y-6">
+                                    <h3 className="text-xl font-semibold text-slate-900">
+                                        {question.question}
+                                    </h3>
 
-                                <fieldset className="mt-4">
-                                    <legend className="sr-only">Response options for question {index + 1}</legend>
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                                        {question.options.map((option, optIndex) => (
-                                            <label key={optIndex} className="flex items-center justify-center p-3 border border-gray-200 rounded-md hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-colors has-[:checked]:bg-blue-100 has-[:checked]:border-blue-500 has-[:checked]:ring-1 has-[:checked]:ring-blue-500">
-                                                <input
-                                                    type="radio"
-                                                    name={`question-${index}`}
-                                                    value={assessment.assessmentType === 'survey' ? option : optIndex}
-                                                    checked={assessment.assessmentType === 'survey' 
-                                                        ? formData.responses[index]?.response === option
-                                                        : formData.answers[index]?.selectedOption === optIndex
-                                                    }
-                                                    onChange={(e) => handleResponseChange(
-                                                        index,
-                                                        assessment.assessmentType === 'survey' ? 'response' : 'selectedOption',
-                                                        e.target.value
-                                                    )}
-                                                    className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500 focus:ring-offset-1"
-                                                    required
-                                                />
-                                                <span className="ml-3 text-sm font-medium text-gray-800">{option}</span>
+                                    <fieldset>
+                                        <legend className="sr-only">Response options for question {index + 1}</legend>
+                                        <div className="grid sm:grid-cols-2 gap-4">
+                                            {question.options.map((option, optIndex) => (
+                                                <label key={optIndex} 
+                                                    className="relative flex items-start p-4 border-2 rounded-lg cursor-pointer 
+                                                        transition-all duration-200
+                                                        hover:border-blue-400 hover:bg-blue-50/50
+                                                        has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50/70
+                                                        has-[:checked]:shadow-md">
+                                                    <div className="flex items-center h-5">
+                                                        <input
+                                                            type="radio"
+                                                            name={`question-${index}`}
+                                                            value={assessment.assessmentType === 'survey' ? option : optIndex}
+                                                            checked={assessment.assessmentType === 'survey' 
+                                                                ? formData.responses[index]?.response === option
+                                                                : formData.answers[index]?.selectedOption === optIndex
+                                                            }
+                                                            onChange={(e) => handleResponseChange(
+                                                                index,
+                                                                assessment.assessmentType === 'survey' ? 'response' : 'selectedOption',
+                                                                e.target.value
+                                                            )}
+                                                            className="custom-radio"
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <div className="ml-3">
+                                                        <span className="text-base text-slate-900">{option}</span>
+                                                    </div>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </fieldset>
+
+                                    {(assessment.assessmentType === 'survey' && question.allowComments) && (
+                                        <div className="input-group">
+                                            <label htmlFor={`comments-${index}`} className="label-enhanced">
+                                                Additional Comments (Optional)
                                             </label>
-                                        ))}
-                                    </div>
-                                </fieldset>
-
-                                {(assessment.assessmentType === 'survey' && question.allowComments) && (
-                                    <div className="mt-6">
-                                        <label htmlFor={`comments-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
-                                            Additional Comments (Optional)
-                                        </label>
-                                        <textarea
-                                            id={`comments-${index}`}
-                                            value={formData.responses[index]?.comments || ''}
-                                            onChange={(e) => handleResponseChange(index, 'comments', e.target.value)}
-                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                                            rows="3"
-                                            placeholder="Provide any specific details or context here..."
-                                        />
-                                    </div>
-                                )}
+                                            <textarea
+                                                id={`comments-${index}`}
+                                                value={formData.responses[index]?.comments || ''}
+                                                onChange={(e) => handleResponseChange(index, 'comments', e.target.value)}
+                                                className="form-input-enhanced"
+                                                rows="3"
+                                                placeholder="Provide any specific details or context here..."
+                                            />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))}
 
                     {assessment.assessmentType === 'survey' && (
-                        <div className="bg-white shadow-lg rounded-xl overflow-hidden">
-                            <div className="px-6 py-6 sm:px-8">
-                                <label htmlFor="additionalFeedback" className="block text-lg font-semibold text-slate-800 mb-3">
+                        <div className="card-enhanced p-6 sm:p-8">
+                            <div className="input-group">
+                                <label htmlFor="additionalFeedback" className="text-xl font-semibold text-slate-900 mb-4">
                                     Overall Feedback (Optional)
                                 </label>
                                 <textarea
                                     id="additionalFeedback"
                                     value={formData.additionalFeedback}
                                     onChange={(e) => setFormData(prev => ({ ...prev, additionalFeedback: e.target.value }))}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                                    className="form-input-enhanced"
                                     rows="4"
                                     placeholder="Any other comments or feedback about the assessment process..."
                                 />
@@ -349,26 +402,38 @@ export default function TakeAssessment() {
                         </div>
                     )}
 
-                    <div className="pt-6 flex justify-between items-center">
-                        <button
-                            type="button"
-                            onClick={() => setCurrentStep('details')}
-                            className="inline-flex justify-center py-2 px-6 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                        >
-                            Back to Details
-                        </button>
-                        <button
-                            type="submit"
-                            className="inline-flex items-center justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
-                            disabled={submitting}
-                        >
-                            {submitting ? (
-                                <>
-                                    <LoadingSpinner size="small" className="mr-2" />
-                                    Submitting...
-                                </>
-                            ) : 'Submit Assessment'}
-                        </button>
+                    <div className="sticky bottom-0 pt-6 pb-4 bg-gradient-to-t from-slate-50 to-transparent">
+                        <div className="flex justify-between items-center max-w-4xl mx-auto">
+                            <button
+                                type="button"
+                                onClick={() => setCurrentStep('details')}
+                                className="btn-secondary-enhanced"
+                            >
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                </svg>
+                                Back to Details
+                            </button>
+                            <button
+                                type="submit"
+                                className="btn-primary-enhanced"
+                                disabled={submitting}
+                            >
+                                {submitting ? (
+                                    <>
+                                        <LoadingSpinner size="small" className="mr-2" />
+                                        Submitting...
+                                    </>
+                                ) : (
+                                    <>
+                                        Submit Assessment
+                                        <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>

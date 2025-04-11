@@ -97,14 +97,15 @@ router.post('/:id/submit', async (req, res) => {
         const { 
             participantName, 
             participantEmail, 
-            participantDepartment,
+            participantDepartment, 
             participantDesignation,
-            responses, 
-            additionalFeedback,
+            participantCentre,
+            experience,
+            responses,
             answers,
-            experience 
+            additionalFeedback 
         } = req.body;
-        
+
         const assessment = await Assessment.findById(req.params.id);
         if (!assessment) {
             return res.status(404).json({ message: 'Assessment not found' });
@@ -123,6 +124,7 @@ router.post('/:id/submit', async (req, res) => {
                     email: participantEmail,
                     department: participantDepartment,
                     designation: participantDesignation,
+                    centre: participantCentre,
                     experience: experience
                 },
                 answers,
@@ -140,6 +142,7 @@ router.post('/:id/submit', async (req, res) => {
                 participantEmail,
                 participantDepartment,
                 participantDesignation,
+                participantCentre,
                 responses,
                 additionalFeedback,
                 score,
@@ -209,7 +212,7 @@ router.patch('/:id/toggle-status', protect, async (req, res) => {
 // Update an existing assessment
 router.put('/:id', protect, async (req, res) => {
     try {
-        const { title, description, questions, assessmentType, timeLimit, passingScore } = req.body;
+        const { title, description } = req.body;
 
         // Find the assessment by ID and ensure it belongs to the logged-in user
         const assessment = await Assessment.findOne({ _id: req.params.id, creator: req.user._id });
@@ -218,13 +221,9 @@ router.put('/:id', protect, async (req, res) => {
             return res.status(404).json({ message: 'Assessment not found' });
         }
 
-        // Update the assessment fields
-        assessment.title = title || assessment.title;
-        assessment.description = description || assessment.description;
-        assessment.questions = questions || assessment.questions;
-        assessment.assessmentType = assessmentType || assessment.assessmentType;
-        assessment.timeLimit = timeLimit || assessment.timeLimit;
-        assessment.passingScore = passingScore || assessment.passingScore;
+        // Only update title and description
+        if (title) assessment.title = title;
+        if (description) assessment.description = description;
 
         await assessment.save();
 

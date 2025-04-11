@@ -5,7 +5,8 @@ const responseSchema = new mongoose.Schema({
     response: String,
     comments: String,
     isCorrect: Boolean,
-    points: Number
+    points: Number,
+    centre: String
 });
 
 const surveyResponseSchema = new mongoose.Schema({
@@ -13,6 +14,7 @@ const surveyResponseSchema = new mongoose.Schema({
     participantEmail: String,
     participantDepartment: String,
     participantDesignation: String,
+    participantCentre: String,
     responses: [responseSchema],
     additionalFeedback: String,
     score: Number,
@@ -82,6 +84,7 @@ const assessmentResultSchema = new mongoose.Schema({
         email: String,
         department: String,
         designation: String,
+        centre: String,
         experience: {
             type: String,
             enum: ['beginner', 'intermediate', 'advanced', 'expert']
