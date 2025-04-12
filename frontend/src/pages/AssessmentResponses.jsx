@@ -3,7 +3,14 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Navigation from '../components/Navigation';
-import { UserCircleIcon, ChatBubbleLeftEllipsisIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import AnalyticsSection from '../components/AnalyticsSection';
+import { 
+    UserCircleIcon, 
+    ChatBubbleLeftEllipsisIcon, 
+    CheckCircleIcon, 
+    XCircleIcon,
+    ArrowDownTrayIcon 
+} from '@heroicons/react/24/outline';
 
 export default function AssessmentResponses() {
     const { id } = useParams();
@@ -108,19 +115,82 @@ export default function AssessmentResponses() {
         );
     }
 
+    const downloadSubmissions = () => {
+        // Prepare CSV data
+        const headers = ['Name', 'Email', 'Department', 'Designation', 'Centre', 'Score', 'Submission Date'];
+        const csvRows = [headers];
+
+        if (assessment.assessmentType === 'survey') {
+            assessment.responses.forEach(response => {
+                csvRows.push([
+                    response.participantName,
+                    response.participantEmail,
+                    response.participantDepartment,
+                    response.participantDesignation,
+                    response.participantCentre,
+                    'N/A', // Score not applicable for surveys
+                    new Date(response.submittedAt).toLocaleString()
+                ]);
+            });
+        } else {
+            assessment.results.forEach(result => {
+                csvRows.push([
+                    result.participant.name,
+                    result.participant.email,
+                    result.participant.department,
+                    result.participant.designation,
+                    result.participant.centre,
+                    `${result.totalScore}%`,
+                    new Date(result.completedAt).toLocaleString()
+                ]);
+            });
+        }
+
+        // Convert to CSV string
+        const csvContent = csvRows
+            .map(row => row.map(cell => `"${cell || ''}"`).join(','))
+            .join('\n');
+
+        // Create and download file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${assessment.title} - Submissions.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
             <Navigation />
             <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
                 <div className="mb-10">
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900 mb-2">{assessment.title}</h1>
-                    <p className="text-gray-600 text-base">{assessment.description}</p>
-                    {assessment.assessmentType !== 'survey' && (
-                        <div className="mt-2 text-sm text-blue-600">
-                            Type: Quiz {assessment.timeLimit && `• Time Limit: ${assessment.timeLimit} minutes`}
-                            {assessment.passingScore && ` • Passing Score: ${assessment.passingScore}%`}
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h1 className="text-3xl font-bold tracking-tight text-slate-900 mb-2">{assessment.title}</h1>
+                            <p className="text-gray-600 text-base">{assessment.description}</p>
+                            {assessment.assessmentType !== 'survey' && (
+                                <div className="mt-2 text-sm text-blue-600">
+                                    Type: Quiz {assessment.timeLimit && `• Time Limit: ${assessment.timeLimit} minutes`}
+                                    {assessment.passingScore && ` • Passing Score: ${assessment.passingScore}%`}
+                                </div>
+                            )}
                         </div>
-                    )}
+                        <button
+                            onClick={downloadSubmissions}
+                            className="inline-flex items-center gap-x-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors duration-200"
+                        >
+                            <ArrowDownTrayIcon className="-ml-0.5 h-5 w-5" aria-hidden="true" />
+                            Download Submissions
+                        </button>
+                    </div>
+                </div>
+
+                <div className="mb-10">
+                    <h2 className="text-2xl font-semibold text-slate-800 mb-6">Response Analytics</h2>
+                    <AnalyticsSection assessmentId={id} />
                 </div>
 
                 <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 mb-10">
@@ -242,6 +312,7 @@ export default function AssessmentResponses() {
                                                         )}
                                                     </div>
                                                 ))}
+
                                             </div>
 
                                             {response.additionalFeedback && (

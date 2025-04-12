@@ -239,4 +239,129 @@ router.put('/:id', protect, async (req, res) => {
     }
 });
 
+// Get assessment analytics
+router.get('/:id/analytics', protect, async (req, res) => {
+    try {
+        const assessment = await Assessment.findOne({ 
+            _id: req.params.id,
+            creator: req.user._id
+        });
+
+        if (!assessment) {
+            return res.status(404).json({ message: 'Assessment not found' });
+        }
+
+        // Initialize analytics object
+        const analytics = {
+            centreStats: {},
+            departmentStats: {},
+            experienceStats: {},
+            timeStats: {
+                hourly: {},
+                daily: {},
+                monthly: {}
+            },
+            totalResponses: 0
+        };
+
+        // Combined responses from both survey responses and quiz results
+        const allResponses = [
+            ...assessment.responses.map(r => ({
+                centre: r.participantCentre,
+                department: r.participantDepartment,
+                submittedAt: r.submittedAt,
+                type: 'survey'
+            })),
+            ...assessment.results.map(r => ({
+                centre: r.participant.centre,
+                department: r.participant.department,
+                experience: r.participant.experience,
+                submittedAt: r.completedAt,
+                score: r.totalScore,
+                type: 'quiz'
+            }))
+        ];
+
+        analytics.totalResponses = allResponses.length;
+
+        // Process centre statistics
+        allResponses.forEach(response => {
+            if (response.centre) {
+                analytics.centreStats[response.centre] = analytics.centreStats[response.centre] || {
+                    count: 0,
+                    avgScore: 0,
+                    totalScore: 0,
+                    responses: 0
+                };
+                analytics.centreStats[response.centre].count++;
+                if (response.score !== undefined) {
+                    analytics.centreStats[response.centre].totalScore += response.score;
+                    analytics.centreStats[response.centre].responses++;
+                }
+            }
+
+            if (response.department) {
+                analytics.departmentStats[response.department] = analytics.departmentStats[response.department] || {
+                    count: 0,
+                    avgScore: 0,
+                    totalScore: 0,
+                    responses: 0
+                };
+                analytics.departmentStats[response.department].count++;
+                if (response.score !== undefined) {
+                    analytics.departmentStats[response.department].totalScore += response.score;
+                    analytics.departmentStats[response.department].responses++;
+                }
+            }
+
+            if (response.experience) {
+                analytics.experienceStats[response.experience] = analytics.experienceStats[response.experience] || {
+                    count: 0,
+                    avgScore: 0,
+                    totalScore: 0,
+                    responses: 0
+                };
+                analytics.experienceStats[response.experience].count++;
+                if (response.score !== undefined) {
+                    analytics.experienceStats[response.experience].totalScore += response.score;
+                    analytics.experienceStats[response.experience].responses++;
+                }
+            }
+
+            // Process time-based statistics
+            const date = new Date(response.submittedAt);
+            const hour = date.getHours();
+            const day = date.toLocaleDateString();
+            const month = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+            analytics.timeStats.hourly[hour] = (analytics.timeStats.hourly[hour] || 0) + 1;
+            analytics.timeStats.daily[day] = (analytics.timeStats.daily[day] || 0) + 1;
+            analytics.timeStats.monthly[month] = (analytics.timeStats.monthly[month] || 0) + 1;
+        });
+
+        // Calculate averages for centres and departments
+        Object.values(analytics.centreStats).forEach(stat => {
+            if (stat.responses > 0) {
+                stat.avgScore = Math.round(stat.totalScore / stat.responses);
+            }
+        });
+
+        Object.values(analytics.departmentStats).forEach(stat => {
+            if (stat.responses > 0) {
+                stat.avgScore = Math.round(stat.totalScore / stat.responses);
+            }
+        });
+
+        Object.values(analytics.experienceStats).forEach(stat => {
+            if (stat.responses > 0) {
+                stat.avgScore = Math.round(stat.totalScore / stat.responses);
+            }
+        });
+
+        res.json(analytics);
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to fetch analytics', error: error.message });
+    }
+});
+
 module.exports = router;
