@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -8,18 +8,177 @@ import {
     UserCircleIcon, 
     ChatBubbleLeftEllipsisIcon, 
     CheckCircleIcon, 
-    XCircleIcon,
-    ArrowDownTrayIcon 
+    ArrowDownTrayIcon,
+    BuildingOfficeIcon,
+    ArrowUpIcon,
+    ArrowDownIcon
 } from '@heroicons/react/24/outline';
 
 export default function AssessmentResponses() {
     const { id } = useParams();
     const [assessment, setAssessment] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
+    const [centerFilter, setCenterFilter] = useState('');
 
     useEffect(() => {
         fetchAssessment();
     }, [id]);
+
+    // Sort function for responses/results
+    const requestSort = (key) => {
+        let direction = 'ascending';
+        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    // Get all available centers for filtering
+    const availableCenters = useMemo(() => {
+        if (!assessment) return [];
+        
+        const centers = new Set();
+        if (assessment.assessmentType === 'survey') {
+            assessment.responses.forEach(response => {
+                if (response.participantCentre) {
+                    centers.add(response.participantCentre);
+                }
+            });
+        } else {
+            assessment.results.forEach(result => {
+                if (result.participant.centre) {
+                    centers.add(result.participant.centre);
+                }
+            });
+        }
+        return Array.from(centers).sort();
+    }, [assessment]);
+
+    // Get sorted and filtered responses/results
+    const sortedResponses = useMemo(() => {
+        if (!assessment) return [];
+        
+        let items = [];
+        if (assessment.assessmentType === 'survey') {
+            items = [...assessment.responses];
+        } else {
+            items = [...assessment.results];
+        }
+        
+        // Apply center filter
+        if (centerFilter) {
+            items = items.filter(item => {
+                const center = assessment.assessmentType === 'survey' 
+                    ? item.participantCentre 
+                    : item.participant.centre;
+                return center === centerFilter;
+            });
+        }
+        
+        // Apply sorting
+        return items.sort((a, b) => {
+            let aValue, bValue;
+            
+            if (sortConfig.key === 'name') {
+                aValue = assessment.assessmentType === 'survey' ? a.participantName : a.participant.name;
+                bValue = assessment.assessmentType === 'survey' ? b.participantName : b.participant.name;
+            } else if (sortConfig.key === 'score') {
+                if (assessment.assessmentType === 'survey') return 0; // No sorting by score for surveys
+                aValue = a.totalScore;
+                bValue = b.totalScore;
+            } else if (sortConfig.key === 'centre') {
+                aValue = assessment.assessmentType === 'survey' ? a.participantCentre : a.participant.centre;
+                bValue = assessment.assessmentType === 'survey' ? b.participantCentre : b.participant.centre;
+            }
+            
+            if (aValue < bValue) {
+                return sortConfig.direction === 'ascending' ? -1 : 1;
+            }
+            if (aValue > bValue) {
+                return sortConfig.direction === 'ascending' ? 1 : -1;
+            }
+            return 0;
+        });
+    }, [assessment, sortConfig, centerFilter]);
+
+    // Calculate center-specific statistics
+    const centerStats = useMemo(() => {
+        if (!assessment) return [];
+        
+        const stats = {};
+        
+        if (assessment.assessmentType !== 'survey') {
+            assessment.results.forEach(result => {
+                const centre = result.participant.centre || 'Unspecified';
+                if (!stats[centre]) {
+                    stats[centre] = {
+                        name: centre,
+                        count: 0,
+                        totalScore: 0,
+                        avgScore: 0,
+                        highestScore: 0,
+                        participants: []
+                    };
+                }
+                
+                stats[centre].count++;
+                stats[centre].totalScore += result.totalScore;
+                stats[centre].highestScore = Math.max(stats[centre].highestScore, result.totalScore);
+                stats[centre].participants.push({
+                    name: result.participant.name,
+                    score: result.totalScore
+                });
+            });
+            
+            // Calculate averages
+            Object.values(stats).forEach(centre => {
+                centre.avgScore = Math.round(centre.totalScore / centre.count);
+            });
+        } else {
+            assessment.responses.forEach(response => {
+                const centre = response.participantCentre || 'Unspecified';
+                if (!stats[centre]) {
+                    stats[centre] = {
+                        name: centre,
+                        count: 0,
+                        participants: []
+                    };
+                }
+                
+                stats[centre].count++;
+                stats[centre].participants.push({
+                    name: response.participantName
+                });
+            });
+        }
+        
+        return Object.values(stats).sort((a, b) => 
+            assessment.assessmentType === 'survey' 
+                ? b.count - a.count 
+                : b.avgScore - a.avgScore
+        );
+    }, [assessment]);
+
+    // Get a random color based on centre name for consistent coloring
+    const getCentreColor = (centre) => {
+        if (!centre) return 'bg-gray-200 text-gray-700';
+        
+        const colors = [
+            'bg-blue-100 text-blue-700',
+            'bg-green-100 text-green-700',
+            'bg-yellow-100 text-yellow-700',
+            'bg-purple-100 text-purple-700',
+            'bg-pink-100 text-pink-700',
+            'bg-indigo-100 text-indigo-700',
+            'bg-teal-100 text-teal-700',
+            'bg-orange-100 text-orange-700',
+        ];
+        
+        // Simple hash function to get consistent colors for the same centre
+        const hash = centre.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        return colors[hash % colors.length];
+    };
 
     const fetchAssessment = async () => {
         try {
@@ -36,11 +195,14 @@ export default function AssessmentResponses() {
         } finally {
             setLoading(false);
         }
-    };
-
-    const calculateResponseStats = (questionIndex) => {
+    };    const calculateResponseStats = (questionIndex, centerName = null) => {
         if (assessment.assessmentType === 'survey') {
-            const responses = assessment.responses.map(r => r.responses[questionIndex]?.response);
+            // Filter responses by center if provided
+            const filteredResponses = centerName 
+                ? assessment.responses.filter(r => r.participantCentre === centerName)
+                : assessment.responses;
+                
+            const responses = filteredResponses.map(r => r.responses[questionIndex]?.response);
             const totalResponses = responses.filter(r => r).length;
             const stats = {};
             
@@ -57,7 +219,12 @@ export default function AssessmentResponses() {
                 percentage: totalResponses ? Math.round((stats[option] || 0) / totalResponses * 100) : 0
             }));
         } else {
-            const answers = assessment.results.map(r => r.answers[questionIndex]);
+            // Filter results by center if provided
+            const filteredResults = centerName 
+                ? assessment.results.filter(r => r.participant.centre === centerName)
+                : assessment.results;
+                
+            const answers = filteredResults.map(r => r.answers[questionIndex]);
             const totalAnswers = answers.length;
             const correctAnswers = answers.filter(a => a?.isCorrect).length;
             const incorrectAnswers = answers.filter(a => a?.isCorrect === false).length;
@@ -162,6 +329,44 @@ export default function AssessmentResponses() {
         document.body.removeChild(link);
     };
 
+    // Function to generate and download center-specific report
+    const downloadCenterReport = (centerName) => {
+        if (!assessment) return;
+        
+        // Create headers and rows for CSV
+        const headers = ['Question', 'Correct Answers', 'Incorrect Answers', 'Percentage Correct'];
+        const csvRows = [headers];
+        
+        // For each question, calculate stats for the specified center
+        assessment.questions.forEach((question, index) => {
+            const stats = calculateResponseStats(index, centerName);
+            const correctStat = stats.find(s => s.option === 'Correct') || { count: 0, percentage: 0 };
+            const incorrectStat = stats.find(s => s.option === 'Incorrect') || { count: 0, percentage: 0 };
+            
+            csvRows.push([
+                question.question,
+                correctStat.count,
+                incorrectStat.count,
+                `${correctStat.percentage}%`
+            ]);
+        });
+        
+        // Convert to CSV
+        const csvContent = csvRows
+            .map(row => row.map(cell => `"${cell || ''}"`).join(','))
+            .join('\n');
+        
+        // Create and download file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${assessment.title} - ${centerName} Report.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
             <Navigation />
@@ -180,7 +385,7 @@ export default function AssessmentResponses() {
                         </div>
                         <button
                             onClick={downloadSubmissions}
-                            className="inline-flex items-center gap-x-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors duration-200"
+                            className="inline-flex items-center gap-x-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors duration-200"
                         >
                             <ArrowDownTrayIcon className="-ml-0.5 h-5 w-5" aria-hidden="true" />
                             Download Submissions
@@ -212,8 +417,187 @@ export default function AssessmentResponses() {
                     </div>
                 </div>
 
+                {/* Centers Performance Summary */}
+                {centerStats.length > 1 && (
+                    <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 mb-10">
+                        <h2 className="text-xl font-semibold text-slate-800 mb-6">Centers Performance Summary</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {centerStats.map((center, index) => (
+                                <div key={index} className="border border-gray-100 rounded-lg p-4 hover:shadow-md transition-shadow duration-200">
+                                    <div className="flex items-center mb-3">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(center.name)}`}>
+                                            <BuildingOfficeIcon className="h-3 w-3 mr-1" />
+                                            {center.name}
+                                        </span>
+                                        <span className="text-sm text-gray-600 ml-2">{center.count} {assessment.assessmentType === 'survey' ? 'responses' : 'participants'}</span>
+                                    </div>
+                                    
+                                    {assessment.assessmentType !== 'survey' && (
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center text-sm">
+                                                <span className="text-gray-600">Average Score</span>
+                                                <span className="font-medium">{center.avgScore}%</span>
+                                            </div>
+                                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                <div 
+                                                    className={`h-full rounded-full ${
+                                                        center.avgScore >= (assessment.passingScore || 70) 
+                                                            ? 'bg-green-500' 
+                                                            : 'bg-red-500'
+                                                    }`}
+                                                    style={{ width: `${center.avgScore}%` }}
+                                                />
+                                            </div>
+                                            
+                                            <div className="flex justify-between items-center text-sm mt-3">
+                                                <span className="text-gray-600">Top Score</span>
+                                                <span className="font-medium">{center.highestScore}%</span>
+                                            </div>
+                                            
+                                            {center.participants.length > 0 && (
+                                                <div className="mt-3 pt-3 border-t border-gray-100">
+                                                    <div className="text-xs text-gray-500 mb-1">Top Performers</div>
+                                                    <div className="max-h-24 overflow-y-auto">
+                                                        {center.participants
+                                                            .sort((a, b) => b.score - a.score)
+                                                            .slice(0, 3)
+                                                            .map((participant, idx) => (
+                                                                <div key={idx} className="flex justify-between text-sm py-1">
+                                                                    <span className="text-gray-700 truncate" style={{maxWidth: "70%"}}>{participant.name}</span>
+                                                                    {assessment.assessmentType !== 'survey' && (
+                                                                        <span className="font-medium">{participant.score}%</span>
+                                                                    )}
+                                                                </div>
+                                                            ))
+                                                        }
+                                                    </div>
+                                                </div>                                            )}
+                                        </div>
+                                    )}
+                                    
+                                    <div className="flex justify-between items-center mt-3">
+                                        {assessment.assessmentType === 'survey' ? (
+                                            <button 
+                                                onClick={() => setCenterFilter(center.name)} 
+                                                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                            >
+                                                View Responses
+                                            </button>
+                                        ) : (
+                                            <>
+                                                <button 
+                                                    onClick={() => setCenterFilter(center.name)} 
+                                                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                                >
+                                                    View Details
+                                                </button>
+                                                <button 
+                                                    onClick={() => downloadCenterReport(center.name)} 
+                                                    className="text-sm text-gray-600 hover:text-gray-800 flex items-center"
+                                                >
+                                                    <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
+                                                    Export
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 <div className="space-y-8 mb-12">
-                    <h2 className="text-2xl font-semibold text-slate-800 mb-6 border-b pb-3">Question Breakdown</h2>
+                    <div className="flex justify-between items-center mb-6 border-b pb-3">
+                        <h2 className="text-2xl font-semibold text-slate-800">Question Breakdown</h2>
+                        
+                        {availableCenters.length > 0 && (
+                            <div className="relative">
+                                <select
+                                    value={centerFilter}
+                                    onChange={(e) => setCenterFilter(e.target.value)}
+                                    className="block w-full pl-10 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    <option value="">All Centers</option>
+                                    {availableCenters.map(center => (
+                                        <option key={center} value={center}>{center}</option>
+                                    ))}
+                                </select>
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <BuildingOfficeIcon className="h-4 w-4 text-gray-500" />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* Quick Insights Panel */}
+                    {assessment.assessmentType !== 'survey' && assessment.questions.length > 0 && (
+                        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 mb-8">
+                            <h3 className="text-lg font-semibold text-slate-800 mb-5">Quick Insights</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Highest performing question */}
+                                <div className="bg-green-50 rounded-lg p-4 border border-green-100">
+                                    <h4 className="text-sm font-semibold text-green-800 mb-2">Highest Performance</h4>
+                                    {(() => {
+                                        let highestCorrectRate = 0;
+                                        let highestQuestionIndex = 0;
+                                        
+                                        assessment.questions.forEach((_, index) => {
+                                            const stats = calculateResponseStats(index, centerFilter || null);
+                                            const correctRate = stats.find(s => s.option === 'Correct')?.percentage || 0;
+                                            if (correctRate > highestCorrectRate) {
+                                                highestCorrectRate = correctRate;
+                                                highestQuestionIndex = index;
+                                            }
+                                        });
+                                        
+                                        return (
+                                            <>
+                                                <p className="text-sm text-gray-700 mb-1">
+                                                    <span className="font-medium">Question {highestQuestionIndex + 1}:</span> {assessment.questions[highestQuestionIndex].question}
+                                                </p>
+                                                <div className="flex items-center mt-3">
+                                                    <span className="text-green-600 font-bold text-xl">{highestCorrectRate}%</span>
+                                                    <span className="ml-2 text-xs text-gray-600">correct responses</span>
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                                
+                                {/* Lowest performing question */}
+                                <div className="bg-red-50 rounded-lg p-4 border border-red-100">
+                                    <h4 className="text-sm font-semibold text-red-800 mb-2">Lowest Performance</h4>
+                                    {(() => {
+                                        let lowestCorrectRate = 100;
+                                        let lowestQuestionIndex = 0;
+                                        
+                                        assessment.questions.forEach((_, index) => {
+                                            const stats = calculateResponseStats(index, centerFilter || null);
+                                            const correctRate = stats.find(s => s.option === 'Correct')?.percentage || 0;
+                                            if (correctRate < lowestCorrectRate) {
+                                                lowestCorrectRate = correctRate;
+                                                lowestQuestionIndex = index;
+                                            }
+                                        });
+                                        
+                                        return (
+                                            <>
+                                                <p className="text-sm text-gray-700 mb-1">
+                                                    <span className="font-medium">Question {lowestQuestionIndex + 1}:</span> {assessment.questions[lowestQuestionIndex].question}
+                                                </p>
+                                                <div className="flex items-center mt-3">
+                                                    <span className="text-red-600 font-bold text-xl">{lowestCorrectRate}%</span>
+                                                    <span className="ml-2 text-xs text-gray-600">correct responses</span>
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
                     {assessment.questions.map((question, index) => (
                         <div key={index} className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
                             <h3 className="text-lg font-semibold text-slate-800 mb-5">
@@ -226,7 +610,7 @@ export default function AssessmentResponses() {
                             </h3>
 
                             <div className="space-y-3">
-                                {calculateResponseStats(index).map((stat, statIndex) => (
+                                {calculateResponseStats(index, centerFilter).map((stat, statIndex) => (
                                     <div key={statIndex} className="flex items-center gap-4">
                                         <div className="w-24 text-sm font-medium text-gray-700 text-right">{stat.option}</div>
                                         <div className="flex-1">
@@ -246,23 +630,65 @@ export default function AssessmentResponses() {
                                     </div>
                                 ))}
                             </div>
+                            
+                            {/* Center Performance Comparison for Quiz Questions */}
+                            {assessment.assessmentType !== 'survey' && centerStats.length > 1 && (
+                                <div className="mt-6 pt-5 border-t border-gray-200">
+                                    <h4 className="text-base font-semibold text-slate-700 mb-4 flex items-center">
+                                        <BuildingOfficeIcon className="h-5 w-5 mr-2 text-gray-400"/>
+                                        Center Performance Comparison
+                                    </h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {centerStats.map((center, centerIdx) => {
+                                            const centerStats = calculateResponseStats(index, center.name);
+                                            const correctPercentage = centerStats.find(s => s.option === 'Correct')?.percentage || 0;
+                                            return (
+                                                <div key={centerIdx} className="border border-gray-100 rounded-lg p-3">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(center.name)}`}>
+                                                            {center.name}
+                                                        </span>
+                                                        <span className={`text-sm font-semibold ${correctPercentage >= 70 ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {correctPercentage}% correct
+                                                        </span>
+                                                    </div>
+                                                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className={`h-full rounded-full ${correctPercentage >= 70 ? 'bg-green-500' : 'bg-red-500'}`}
+                                                            style={{ width: `${correctPercentage}%` }}
+                                                        />
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 mt-1">
+                                                        {centerStats.find(s => s.option === 'Correct')?.count || 0} of {center.count} participants answered correctly
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
 
-                            {assessment.assessmentType === 'survey' && question.allowComments && 
+                            {/* Comments Section for Survey Questions */}
+                            {assessment.assessmentType === 'survey' && question.allowComments &&
                              assessment.responses.some(r => r.responses[index]?.comments) && (
-                                <div className="mt-8 pt-5 border-t border-gray-200">
+                                <div className="mt-6 pt-5 border-t border-gray-200">
                                     <h4 className="text-base font-semibold text-slate-700 mb-4 flex items-center">
                                         <ChatBubbleLeftEllipsisIcon className="h-5 w-5 mr-2 text-gray-400"/>
                                         Comments
                                     </h4>
                                     <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
                                         {assessment.responses.map((response, respIndex) => {
+                                            // Filter out responses not matching the center filter if active
+                                            if (centerFilter && response.participantCentre !== centerFilter) {
+                                                return null;
+                                            }
                                             const comment = response.responses[index]?.comments;
                                             if (!comment) return null;
                                             return (
                                                 <div key={respIndex} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
                                                     <p className="text-sm text-gray-700 italic">"{comment}"</p>
                                                     <p className="text-xs text-gray-500 mt-2 text-right">
-                                                        - {response.participantName} ({response.participantDepartment})
+                                                        - {response.participantName} ({response.participantCentre || 'N/A'})
                                                     </p>
                                                 </div>
                                             );
@@ -275,25 +701,113 @@ export default function AssessmentResponses() {
                 </div>
 
                 <div className="mt-12">
-                    <h2 className="text-2xl font-semibold text-slate-800 mb-6 border-b pb-3">Individual Responses</h2>
+                    <div className="flex justify-between items-center mb-6 border-b pb-3">
+                        <h2 className="text-2xl font-semibold text-slate-800">Individual Responses</h2>
+                        
+                        <div className="flex items-center gap-4">
+                            {availableCenters.length > 0 && (
+                                <div className="relative">
+                                    <select
+                                        value={centerFilter}
+                                        onChange={(e) => setCenterFilter(e.target.value)}
+                                        className="block w-full pl-10 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="">All Centers</option>
+                                        {availableCenters.map(center => (
+                                            <option key={center} value={center}>{center}</option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <BuildingOfficeIcon className="h-4 w-4 text-gray-500" />
+                                    </div>
+                                </div>
+                            )}
+                            
+                            <div className="inline-flex rounded-md shadow-sm">
+                                <button
+                                    onClick={() => requestSort('name')}
+                                    className={`relative inline-flex items-center px-3 py-2 text-sm font-medium rounded-l-md border ${sortConfig.key === 'name' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-700 border-gray-300'}`}
+                                >
+                                    Name
+                                    {sortConfig.key === 'name' && (
+                                        <span className="ml-1">
+                                            {sortConfig.direction === 'ascending' ? (
+                                                <ArrowUpIcon className="h-3 w-3" />
+                                            ) : (
+                                                <ArrowDownIcon className="h-3 w-3" />
+                                            )}
+                                        </span>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => requestSort('centre')}
+                                    className={`relative inline-flex items-center px-3 py-2 text-sm font-medium border-t border-b ${sortConfig.key === 'centre' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-700 border-gray-300'}`}
+                                >
+                                    Centre
+                                    {sortConfig.key === 'centre' && (
+                                        <span className="ml-1">
+                                            {sortConfig.direction === 'ascending' ? (
+                                                <ArrowUpIcon className="h-3 w-3" />
+                                            ) : (
+                                                <ArrowDownIcon className="h-3 w-3" />
+                                            )}
+                                        </span>
+                                    )}
+                                </button>
+                                {assessment.assessmentType !== 'survey' && (
+                                    <button
+                                        onClick={() => requestSort('score')}
+                                        className={`relative inline-flex items-center px-3 py-2 text-sm font-medium rounded-r-md border ${sortConfig.key === 'score' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-700 border-gray-300'}`}
+                                    >
+                                        Score
+                                        {sortConfig.key === 'score' && (
+                                            <span className="ml-1">
+                                                {sortConfig.direction === 'ascending' ? (
+                                                    <ArrowUpIcon className="h-3 w-3" />
+                                                ) : (
+                                                    <ArrowDownIcon className="h-3 w-3" />
+                                                )}
+                                            </span>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
                     {((assessment.assessmentType === 'survey' && assessment.responses.length > 0) || 
                       (assessment.assessmentType !== 'survey' && assessment.results.length > 0)) ? (
                         <div className="space-y-6">
                             {assessment.assessmentType === 'survey' ? (
                                 // Survey Responses
-                                assessment.responses.map((response, index) => (
+                                sortedResponses.map((response, index) => (
                                     <details key={index} className="bg-white rounded-lg shadow-md overflow-hidden group">
                                         <summary className="flex justify-between items-center p-5 cursor-pointer hover:bg-gray-50 transition-colors">
-                                            <div>
-                                                <h3 className="text-base font-semibold text-slate-800">
-                                                    {response.participantName}
-                                                    <span className="text-sm font-normal text-gray-500 ml-2">
-                                                        ({response.participantDesignation})
-                                                    </span>
-                                                </h3>
-                                                <p className="text-sm text-gray-600">{response.participantDepartment}</p>
+                                            <div className="flex items-start gap-3">
+                                                <div>
+                                                    <h3 className="text-base font-semibold text-slate-800">
+                                                        {response.participantName}
+                                                        <span className="text-sm font-normal text-gray-500 ml-2">
+                                                            ({response.participantDesignation})
+                                                        </span>
+                                                    </h3>
+                                                    <div className="flex items-center mt-1">
+                                                        <p className="text-sm text-gray-600 mr-3">{response.participantDepartment}</p>
+                                                        {response.participantCentre && (
+                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(response.participantCentre)}`}>
+                                                                <BuildingOfficeIcon className="h-3 w-3 mr-1" />
+                                                                {response.participantCentre}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <span className="text-sm text-gray-500 group-open:rotate-90 transform transition-transform duration-200">▼</span>
+                                            <div className="flex items-center">
+                                                <span className="text-xs text-gray-500 mr-2">
+                                                    {new Date(response.submittedAt).toLocaleDateString()}
+                                                </span>
+                                                <span className="text-sm text-gray-500 group-open:rotate-90 transform transition-transform duration-200">▼</span>
+                                            </div>
                                         </summary>
                                         <div className="px-5 pb-5 border-t border-gray-100">
                                             <div className="space-y-4 mt-4">
@@ -328,24 +842,38 @@ export default function AssessmentResponses() {
                                         </div>
                                     </details>
                                 ))
-                            ) : (
-                                // Quiz Results
-                                assessment.results.map((result, index) => (
+                            ) : (                                // Quiz Results
+                                sortedResponses.map((result, index) => (
                                     <details key={index} className="bg-white rounded-lg shadow-md overflow-hidden group">
                                         <summary className="flex justify-between items-center p-5 cursor-pointer hover:bg-gray-50 transition-colors">
-                                            <div>
-                                                <h3 className="text-base font-semibold text-slate-800">
-                                                    {result.participant.name}
-                                                    <span className="text-sm font-normal text-gray-500 ml-2">
-                                                        ({result.participant.experience})
-                                                    </span>
-                                                </h3>
-                                                <p className="text-sm text-gray-600">{result.participant.email}</p>
+                                            <div className="flex items-start gap-3">
+                                                <div>
+                                                    <h3 className="text-base font-semibold text-slate-800">
+                                                        {result.participant.name}
+                                                        <span className="text-sm font-normal text-gray-500 ml-2">
+                                                            ({result.participant.designation || result.participant.experience})
+                                                        </span>
+                                                    </h3>
+                                                    <div className="flex items-center mt-1">
+                                                        <p className="text-sm text-gray-600 mr-3">{result.participant.department}</p>
+                                                        {result.participant.centre && (
+                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(result.participant.centre)}`}>
+                                                                <BuildingOfficeIcon className="h-3 w-3 mr-1" />
+                                                                {result.participant.centre}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div className="flex items-center gap-4">
-                                                <span className="text-lg font-semibold text-blue-600">
-                                                    Score: {result.totalScore}%
-                                                </span>
+                                                <div className="flex flex-col items-end">
+                                                    <span className={`text-lg font-semibold ${result.totalScore >= (assessment.passingScore || 70) ? 'text-green-600' : 'text-red-600'}`}>
+                                                        {result.totalScore}%
+                                                    </span>
+                                                    <span className="text-xs text-gray-500">
+                                                        {new Date(result.completedAt).toLocaleDateString()}
+                                                    </span>
+                                                </div>
                                                 <span className="text-sm text-gray-500 group-open:rotate-90 transform transition-transform duration-200">▼</span>
                                             </div>
                                         </summary>
