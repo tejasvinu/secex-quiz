@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -11,8 +11,13 @@ import {
     ArrowDownTrayIcon,
     BuildingOfficeIcon,
     ArrowUpIcon,
-    ArrowDownIcon
+    ArrowDownIcon,
+    PencilIcon,
+    TrashIcon,
+    XMarkIcon,
+    ArrowPathIcon
 } from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
 
 export default function AssessmentResponses() {
     const { id } = useParams();
@@ -20,6 +25,18 @@ export default function AssessmentResponses() {
     const [loading, setLoading] = useState(true);
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
     const [centerFilter, setCenterFilter] = useState('');
+    
+    // New state for managing responses
+    const [editResponseId, setEditResponseId] = useState(null);
+    const [editingResponse, setEditingResponse] = useState(null);
+    const [editResultId, setEditResultId] = useState(null);
+    const [editingResult, setEditingResult] = useState(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [deleteItemId, setDeleteItemId] = useState(null);
+    const [deleteItemType, setDeleteItemType] = useState(null);
+    const modalRef = useRef(null);
 
     useEffect(() => {
         fetchAssessment();
@@ -367,31 +384,393 @@ export default function AssessmentResponses() {
         document.body.removeChild(link);
     };
 
+    // Handler to start editing a response
+    const handleEditResponse = (response) => {
+        setEditResponseId(response._id);
+        setEditingResponse({...response});
+        setIsEditing(true);
+    };
+
+    // Handler to start editing a quiz result
+    const handleEditResult = (result) => {
+        setEditResultId(result._id);
+        setEditingResult({...result});
+        setIsEditing(true);
+    };
+
+    // Save edited response
+    const saveResponseChanges = async () => {
+        setIsSaving(true);
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            await axios.put(
+                `${import.meta.env.VITE_API_URL}/api/assessment/${id}/responses/${editResponseId}`,
+                editingResponse,
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+            
+            // Update the assessment state
+            setAssessment(prev => {
+                const updatedResponses = prev.responses.map(response => 
+                    response._id === editResponseId ? editingResponse : response
+                );
+                return {...prev, responses: updatedResponses};
+            });
+            
+            setIsEditing(false);
+            setEditResponseId(null);
+            setEditingResponse(null);
+            toast.success('Response updated successfully');
+        } catch (error) {
+            console.error('Failed to update response:', error);
+            toast.error('Failed to update response');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Save edited quiz result
+    const saveResultChanges = async () => {
+        setIsSaving(true);
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            await axios.put(
+                `${import.meta.env.VITE_API_URL}/api/assessment/${id}/results/${editResultId}`,
+                editingResult,
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+            
+            // Update the assessment state
+            setAssessment(prev => {
+                const updatedResults = prev.results.map(result => 
+                    result._id === editResultId ? editingResult : result
+                );
+                return {...prev, results: updatedResults};
+            });
+            
+            setIsEditing(false);
+            setEditResultId(null);
+            setEditingResult(null);
+            toast.success('Result updated successfully');
+        } catch (error) {
+            console.error('Failed to update result:', error);
+            toast.error('Failed to update result');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Handler for showing delete confirmation modal
+    const confirmDelete = (id, type) => {
+        setDeleteItemId(id);
+        setDeleteItemType(type);
+        setDeleteModalOpen(true);
+    };
+
+    // Handler for deleting a response or result
+    const handleDelete = async () => {
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            if (deleteItemType === 'response') {
+                await axios.delete(
+                    `${import.meta.env.VITE_API_URL}/api/assessment/${id}/responses/${deleteItemId}`,
+                    {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }
+                );
+                
+                // Update state to remove the deleted response
+                setAssessment(prev => ({
+                    ...prev,
+                    responses: prev.responses.filter(r => r._id !== deleteItemId)
+                }));
+                
+                toast.success('Response deleted successfully');
+            } else if (deleteItemType === 'result') {
+                await axios.delete(
+                    `${import.meta.env.VITE_API_URL}/api/assessment/${id}/results/${deleteItemId}`,
+                    {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }
+                );
+                
+                // Update state to remove the deleted result
+                setAssessment(prev => ({
+                    ...prev,
+                    results: prev.results.filter(r => r._id !== deleteItemId)
+                }));
+                
+                toast.success('Result deleted successfully');
+            }
+        } catch (error) {
+            console.error('Delete failed:', error);
+            toast.error('Failed to delete item');
+        } finally {
+            setDeleteModalOpen(false);
+            setDeleteItemId(null);
+            setDeleteItemType(null);
+        }
+    };
+
+    // Handle changes to editing response fields
+    const handleResponseChange = (field, value) => {
+        setEditingResponse(prev => ({
+            ...prev,
+            [field]: value
+        }));
+    };
+
+    // Handle changes to editing result participant fields
+    const handleResultParticipantChange = (field, value) => {
+        setEditingResult(prev => ({
+            ...prev,
+            participant: {
+                ...prev.participant,
+                [field]: value
+            }
+        }));
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
             <Navigation />
             <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-                <div className="mb-10">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <h1 className="text-3xl font-bold tracking-tight text-slate-900 mb-2">{assessment.title}</h1>
-                            <p className="text-gray-600 text-base">{assessment.description}</p>
-                            {assessment.assessmentType !== 'survey' && (
-                                <div className="mt-2 text-sm text-blue-600">
-                                    Type: Quiz {assessment.timeLimit && `• Time Limit: ${assessment.timeLimit} minutes`}
-                                    {assessment.passingScore && ` • Passing Score: ${assessment.passingScore}%`}
+                {/* Delete Confirmation Modal */}
+                {deleteModalOpen && (
+                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+                        <div ref={modalRef} className="relative mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                            <div className="mt-3 text-center">
+                                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                                    <TrashIcon className="h-6 w-6 text-red-600" />
                                 </div>
-                            )}
+                                <h3 className="text-lg leading-6 font-medium text-gray-900 mt-4">Confirm Deletion</h3>
+                                <div className="mt-2 px-7 py-3">
+                                    <p className="text-sm text-gray-500">
+                                        Are you sure you want to delete this {deleteItemType}? This action cannot be undone.
+                                    </p>
+                                </div>
+                                <div className="flex justify-center gap-4 mt-2">
+                                    <button 
+                                        onClick={() => setDeleteModalOpen(false)}
+                                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        onClick={handleDelete}
+                                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-base font-medium rounded-md shadow-sm"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <button
-                            onClick={downloadSubmissions}
-                            className="inline-flex items-center gap-x-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors duration-200"
-                        >
-                            <ArrowDownTrayIcon className="-ml-0.5 h-5 w-5" aria-hidden="true" />
-                            Download Submissions
-                        </button>
                     </div>
-                </div>
+                )}
+
+                {/* Edit Response Modal */}
+                {isEditing && (editResponseId || editResultId) && (
+                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+                        <div className="relative mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+                            <div className="flex justify-between items-center border-b pb-3 mb-4">
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                    Edit {editResponseId ? 'Response' : 'Result'}
+                                </h3>
+                                <button 
+                                    onClick={() => {
+                                        setIsEditing(false);
+                                        setEditResponseId(null);
+                                        setEditingResponse(null);
+                                        setEditResultId(null);
+                                        setEditingResult(null);
+                                    }}
+                                    className="text-gray-400 hover:text-gray-500"
+                                >
+                                    <XMarkIcon className="h-5 w-5" />
+                                </button>
+                            </div>
+                            
+                            <div className="max-h-[calc(100vh-200px)] overflow-y-auto py-2">
+                                {editResponseId && editingResponse && (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={editingResponse.participantName || ''} 
+                                                    onChange={(e) => handleResponseChange('participantName', e.target.value)}
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                                <input 
+                                                    type="email" 
+                                                    value={editingResponse.participantEmail || ''} 
+                                                    onChange={(e) => handleResponseChange('participantEmail', e.target.value)}
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={editingResponse.participantDepartment || ''} 
+                                                    onChange={(e) => handleResponseChange('participantDepartment', e.target.value)}
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Designation</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={editingResponse.participantDesignation || ''} 
+                                                    onChange={(e) => handleResponseChange('participantDesignation', e.target.value)}
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Centre</label>
+                                                <select
+                                                    value={editingResponse.participantCentre || ''}
+                                                    onChange={(e) => handleResponseChange('participantCentre', e.target.value)}
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                >
+                                                    <option value="">Select Centre</option>
+                                                    <option value="delhi">Delhi</option>
+                                                    <option value="bengaluru">Bengaluru</option>
+                                                    <option value="mumbai">Mumbai</option>
+                                                    <option value="kolkatta">Kolkatta</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        {editingResponse.additionalFeedback !== undefined && (
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Additional Feedback</label>
+                                                <textarea 
+                                                    value={editingResponse.additionalFeedback || ''} 
+                                                    onChange={(e) => handleResponseChange('additionalFeedback', e.target.value)}
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                    rows="3"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {editResultId && editingResult && (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={editingResult.participant.name || ''} 
+                                                    onChange={(e) => handleResultParticipantChange('name', e.target.value)}
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                                <input 
+                                                    type="email" 
+                                                    value={editingResult.participant.email || ''} 
+                                                    onChange={(e) => handleResultParticipantChange('email', e.target.value)}
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={editingResult.participant.department || ''} 
+                                                    onChange={(e) => handleResultParticipantChange('department', e.target.value)}
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Designation</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={editingResult.participant.designation || ''} 
+                                                    onChange={(e) => handleResultParticipantChange('designation', e.target.value)}
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Centre</label>
+                                                <select
+                                                    value={editingResult.participant.centre || ''}
+                                                    onChange={(e) => handleResultParticipantChange('centre', e.target.value)}
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                >
+                                                    <option value="">Select Centre</option>
+                                                    <option value="delhi">Delhi</option>
+                                                    <option value="bengaluru">Bengaluru</option>
+                                                    <option value="mumbai">Mumbai</option>
+                                                    <option value="kolkatta">Kolkatta</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Experience</label>
+                                                <select
+                                                    value={editingResult.participant.experience || ''}
+                                                    onChange={(e) => handleResultParticipantChange('experience', e.target.value)}
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                >
+                                                    <option value="">Select Experience Level</option>
+                                                    <option value="beginner">Beginner</option>
+                                                    <option value="intermediate">Intermediate</option>
+                                                    <option value="advanced">Advanced</option>
+                                                    <option value="expert">Expert</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="font-medium text-gray-700 mb-1">
+                                            Total Score: {editingResult.totalScore}%
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <div className="flex justify-end gap-3 mt-5 pt-4 border-t">
+                                <button 
+                                    onClick={() => {
+                                        setIsEditing(false);
+                                        setEditResponseId(null);
+                                        setEditingResponse(null);
+                                        setEditResultId(null);
+                                        setEditingResult(null);
+                                    }}
+                                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium rounded-md"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    onClick={editResponseId ? saveResponseChanges : saveResultChanges}
+                                    disabled={isSaving}
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md flex items-center"
+                                >
+                                    {isSaving ? (
+                                        <>
+                                            <ArrowPathIcon className="h-4 w-4 mr-1 animate-spin" />
+                                            Saving...
+                                        </>
+                                    ) : (
+                                        'Save Changes'
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div className="mb-10">
                     <h2 className="text-2xl font-semibold text-slate-800 mb-6">Response Analytics</h2>
@@ -621,7 +1000,7 @@ export default function AssessmentResponses() {
                                                 />
                                                 {stat.percentage > 10 && (
                                                     <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white mix-blend-luminosity">
-                                                        {stat.percentage}%
+                                                        {stat.percentage}% 
                                                     </span>
                                                 )}
                                             </div>
@@ -698,6 +1077,7 @@ export default function AssessmentResponses() {
                             )}
                         </div>
                     ))}
+
                 </div>
 
                 <div className="mt-12">
@@ -802,8 +1182,30 @@ export default function AssessmentResponses() {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center">
-                                                <span className="text-xs text-gray-500 mr-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex space-x-2">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            handleEditResponse(response);
+                                                        }}
+                                                        className="p-1 text-blue-600 hover:text-blue-800 transition-colors rounded-full hover:bg-blue-50"
+                                                        title="Edit Response"
+                                                    >
+                                                        <PencilIcon className="h-4 w-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            confirmDelete(response._id, 'response');
+                                                        }}
+                                                        className="p-1 text-red-600 hover:text-red-800 transition-colors rounded-full hover:bg-red-50"
+                                                        title="Delete Response"
+                                                    >
+                                                        <TrashIcon className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                                <span className="text-xs text-gray-500">
                                                     {new Date(response.submittedAt).toLocaleDateString()}
                                                 </span>
                                                 <span className="text-sm text-gray-500 group-open:rotate-90 transform transition-transform duration-200">▼</span>
@@ -866,9 +1268,31 @@ export default function AssessmentResponses() {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-4">
+                                                <div className="flex space-x-2">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            handleEditResult(result);
+                                                        }}
+                                                        className="p-1 text-blue-600 hover:text-blue-800 transition-colors rounded-full hover:bg-blue-50"
+                                                        title="Edit Result"
+                                                    >
+                                                        <PencilIcon className="h-4 w-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            confirmDelete(result._id, 'result');
+                                                        }}
+                                                        className="p-1 text-red-600 hover:text-red-800 transition-colors rounded-full hover:bg-red-50"
+                                                        title="Delete Result"
+                                                    >
+                                                        <TrashIcon className="h-4 w-4" />
+                                                    </button>
+                                                </div>
                                                 <div className="flex flex-col items-end">
                                                     <span className={`text-lg font-semibold ${result.totalScore >= (assessment.passingScore || 70) ? 'text-green-600' : 'text-red-600'}`}>
-                                                        {result.totalScore}%
+                                                        {result.totalScore}% 
                                                     </span>
                                                     <span className="text-xs text-gray-500">
                                                         {new Date(result.completedAt).toLocaleDateString()}

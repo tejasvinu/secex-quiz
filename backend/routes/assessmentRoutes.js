@@ -364,4 +364,149 @@ router.get('/:id/analytics', protect, async (req, res) => {
     }
 });
 
+// Update a survey response
+router.put('/:assessmentId/responses/:responseId', protect, async (req, res) => {
+    try {
+        const { assessmentId, responseId } = req.params;
+        const updateData = req.body;
+        
+        const assessment = await Assessment.findOne({ 
+            _id: assessmentId,
+            creator: req.user._id
+        });
+
+        if (!assessment) {
+            return res.status(404).json({ message: 'Assessment not found' });
+        }
+
+        // Find the response to update
+        const responseIndex = assessment.responses.findIndex(
+            response => response._id.toString() === responseId
+        );
+
+        if (responseIndex === -1) {
+            return res.status(404).json({ message: 'Response not found' });
+        }
+
+        // Update response fields
+        const updatedResponse = { ...assessment.responses[responseIndex].toObject(), ...updateData };
+        assessment.responses[responseIndex] = updatedResponse;
+
+        await assessment.save();
+        res.json({ 
+            message: 'Response updated successfully',
+            response: assessment.responses[responseIndex] 
+        });
+    } catch (error) {
+        console.error('Failed to update response:', error);
+        res.status(500).json({ message: 'Failed to update response', error: error.message });
+    }
+});
+
+// Update a quiz result
+router.put('/:assessmentId/results/:resultId', protect, async (req, res) => {
+    try {
+        const { assessmentId, resultId } = req.params;
+        const updateData = req.body;
+        
+        const assessment = await Assessment.findOne({ 
+            _id: assessmentId,
+            creator: req.user._id
+        });
+
+        if (!assessment) {
+            return res.status(404).json({ message: 'Assessment not found' });
+        }
+
+        // Find the result to update
+        const resultIndex = assessment.results.findIndex(
+            result => result._id.toString() === resultId
+        );
+
+        if (resultIndex === -1) {
+            return res.status(404).json({ message: 'Result not found' });
+        }
+
+        // Update result fields
+        if (updateData.participant) {
+            assessment.results[resultIndex].participant = {
+                ...assessment.results[resultIndex].participant,
+                ...updateData.participant
+            };
+        }
+
+        // Recalculate score if answers were modified
+        if (updateData.answers) {
+            assessment.results[resultIndex].answers = updateData.answers;
+            assessment.results[resultIndex].totalScore = calculateScore(
+                assessment.questions, 
+                updateData.answers
+            );
+        }
+
+        await assessment.save();
+        res.json({ 
+            message: 'Result updated successfully',
+            result: assessment.results[resultIndex] 
+        });
+    } catch (error) {
+        console.error('Failed to update result:', error);
+        res.status(500).json({ message: 'Failed to update result', error: error.message });
+    }
+});
+
+// Delete a survey response
+router.delete('/:assessmentId/responses/:responseId', protect, async (req, res) => {
+    try {
+        const { assessmentId, responseId } = req.params;
+        
+        const assessment = await Assessment.findOne({ 
+            _id: assessmentId,
+            creator: req.user._id
+        });
+
+        if (!assessment) {
+            return res.status(404).json({ message: 'Assessment not found' });
+        }
+
+        // Remove the response
+        assessment.responses = assessment.responses.filter(
+            response => response._id.toString() !== responseId
+        );
+
+        await assessment.save();
+        res.json({ message: 'Response deleted successfully' });
+    } catch (error) {
+        console.error('Failed to delete response:', error);
+        res.status(500).json({ message: 'Failed to delete response', error: error.message });
+    }
+});
+
+// Delete a quiz result
+router.delete('/:assessmentId/results/:resultId', protect, async (req, res) => {
+    try {
+        const { assessmentId, resultId } = req.params;
+        
+        const assessment = await Assessment.findOne({ 
+            _id: assessmentId,
+            creator: req.user._id
+        });
+
+        if (!assessment) {
+            return res.status(404).json({ message: 'Assessment not found' });
+        }
+
+        // Remove the result
+        assessment.results = assessment.results.filter(
+            result => result._id.toString() !== resultId
+        );
+
+        await assessment.save();
+        res.json({ message: 'Result deleted successfully' });
+    } catch (error) {
+        console.error('Failed to delete result:', error);
+        res.status(500).json({ message: 'Failed to delete result', error: error.message });
+    }
+});
+
 module.exports = router;

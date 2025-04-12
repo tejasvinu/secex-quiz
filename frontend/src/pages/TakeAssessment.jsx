@@ -245,15 +245,19 @@ export default function TakeAssessment() {
 
                                 <div className="input-group">
                                     <label htmlFor="participantCentre" className="label-enhanced">Centre</label>
-                                    <input
+                                    <select
                                         id="participantCentre"
-                                        type="text"
                                         value={formData.participantCentre}
                                         onChange={(e) => setFormData(prev => ({ ...prev, participantCentre: e.target.value }))}
                                         className="form-input-enhanced"
-                                        placeholder="Your centre"
                                         required
-                                    />
+                                    >
+                                        <option value="">Select your centre</option>
+                                        <option value="delhi">Delhi</option>
+                                        <option value="bengaluru">Bengaluru</option>
+                                        <option value="mumbai">Mumbai</option>
+                                        <option value="kolkatta">Kolkatta</option>
+                                    </select>
                                 </div>
 
                                 {assessment.assessmentType !== 'survey' && (
