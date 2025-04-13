@@ -59,16 +59,19 @@ export default function AssessmentResponses() {
         if (assessment.assessmentType === 'survey') {
             assessment.responses.forEach(response => {
                 if (response.participantCentre) {
-                    centers.add(response.participantCentre);
+                    // Convert to lowercase for case-insensitive grouping
+                    centers.add(response.participantCentre.toLowerCase());
                 }
             });
         } else {
             assessment.results.forEach(result => {
                 if (result.participant.centre) {
-                    centers.add(result.participant.centre);
+                    // Convert to lowercase for case-insensitive grouping
+                    centers.add(result.participant.centre.toLowerCase());
                 }
             });
         }
+        // Sort alphabetically
         return Array.from(centers).sort();
     }, [assessment]);
 
@@ -83,13 +86,14 @@ export default function AssessmentResponses() {
             items = [...assessment.results];
         }
         
-        // Apply center filter
+        // Apply center filter (case-insensitive)
         if (centerFilter) {
             items = items.filter(item => {
                 const center = assessment.assessmentType === 'survey' 
                     ? item.participantCentre 
                     : item.participant.centre;
-                return center === centerFilter;
+                // Compare in lowercase
+                return center && center.toLowerCase() === centerFilter.toLowerCase();
             });
         }
         
@@ -107,6 +111,9 @@ export default function AssessmentResponses() {
             } else if (sortConfig.key === 'centre') {
                 aValue = assessment.assessmentType === 'survey' ? a.participantCentre : a.participant.centre;
                 bValue = assessment.assessmentType === 'survey' ? b.participantCentre : b.participant.centre;
+                // Convert to lowercase for case-insensitive sorting
+                aValue = aValue ? aValue.toLowerCase() : '';
+                bValue = bValue ? bValue.toLowerCase() : '';
             }
             
             if (aValue < bValue) {
@@ -123,63 +130,69 @@ export default function AssessmentResponses() {
     const centerStats = useMemo(() => {
         if (!assessment) return [];
         
-        const stats = {};
+        const stats = {}; // Use an object for efficient lookup by normalized key
         
         if (assessment.assessmentType !== 'survey') {
             assessment.results.forEach(result => {
-                const centre = result.participant.centre || 'Unspecified';
-                if (!stats[centre]) {
-                    stats[centre] = {
-                        name: centre,
+                const originalCentreName = result.participant.centre?.trim() || 'Unspecified';
+                const centreKey = originalCentreName.toLowerCase(); 
+                console.log('Centre Key:', centreKey); // Debugging line
+                if (!stats[centreKey]) {
+                    stats[centreKey] = {
+                        // Store the lowercase key itself. We'll format it for display later.
+                        nameKey: centreKey, 
+                        displayName: originalCentreName, // Keep original for potential reference, but don't rely on it for grouping/display consistency
                         count: 0,
                         totalScore: 0,
-                        avgScore: 0,
                         highestScore: 0,
                         participants: []
                     };
                 }
                 
-                stats[centre].count++;
-                stats[centre].totalScore += result.totalScore;
-                stats[centre].highestScore = Math.max(stats[centre].highestScore, result.totalScore);
-                stats[centre].participants.push({
+                stats[centreKey].count++;
+                stats[centreKey].totalScore += result.totalScore;
+                stats[centreKey].highestScore = Math.max(stats[centreKey].highestScore, result.totalScore);
+                stats[centreKey].participants.push({
                     name: result.participant.name,
                     score: result.totalScore
                 });
             });
             
-            // Calculate averages
-            Object.values(stats).forEach(centre => {
-                centre.avgScore = Math.round(centre.totalScore / centre.count);
+            Object.values(stats).forEach(centreStat => {
+                centreStat.avgScore = Math.round(centreStat.totalScore / centreStat.count);
             });
         } else {
             assessment.responses.forEach(response => {
-                const centre = response.participantCentre || 'Unspecified';
-                if (!stats[centre]) {
-                    stats[centre] = {
-                        name: centre,
+                const originalCentreName = response.participantCentre?.trim() || 'Unspecified';
+                const centreKey = originalCentreName.toLowerCase();
+                
+                if (!stats[centreKey]) {
+                    stats[centreKey] = {
+                        // Store the lowercase key itself.
+                        nameKey: centreKey, 
+                        displayName: originalCentreName, // Keep original for potential reference
                         count: 0,
                         participants: []
                     };
                 }
                 
-                stats[centre].count++;
-                stats[centre].participants.push({
+                stats[centreKey].count++;
+                stats[centreKey].participants.push({
                     name: response.participantName
                 });
             });
         }
         
-        return Object.values(stats).sort((a, b) => 
-            assessment.assessmentType === 'survey' 
-                ? b.count - a.count 
-                : b.avgScore - a.avgScore
-        );
+        return Object.values(stats).sort((a, b) => {
+            // Fallback sort by name (case-insensitive using nameKey)
+            return (a.nameKey || '').localeCompare((b.nameKey || ''));
+        });
     }, [assessment]);
 
     // Get a random color based on centre name for consistent coloring
     const getCentreColor = (centre) => {
-        if (!centre) return 'bg-gray-200 text-gray-700';
+        const safeCentre = centre || ''; // Ensure centre is not null/undefined
+        if (!safeCentre) return 'bg-gray-200 text-gray-700';
         
         const colors = [
             'bg-blue-100 text-blue-700',
@@ -193,7 +206,7 @@ export default function AssessmentResponses() {
         ];
         
         // Simple hash function to get consistent colors for the same centre
-        const hash = centre.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const hash = safeCentre.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
         return colors[hash % colors.length];
     };
 
@@ -213,10 +226,12 @@ export default function AssessmentResponses() {
             setLoading(false);
         }
     };    const calculateResponseStats = (questionIndex, centerName = null) => {
+        if (!assessment) return []; // Added check for assessment
+
         if (assessment.assessmentType === 'survey') {
-            // Filter responses by center if provided
+            // Filter responses by center if provided (case-insensitive)
             const filteredResponses = centerName 
-                ? assessment.responses.filter(r => r.participantCentre === centerName)
+                ? assessment.responses.filter(r => r.participantCentre && r.participantCentre.toLowerCase() === centerName.toLowerCase())
                 : assessment.responses;
                 
             const responses = filteredResponses.map(r => r.responses[questionIndex]?.response);
@@ -236,9 +251,9 @@ export default function AssessmentResponses() {
                 percentage: totalResponses ? Math.round((stats[option] || 0) / totalResponses * 100) : 0
             }));
         } else {
-            // Filter results by center if provided
+            // Filter results by center if provided (case-insensitive)
             const filteredResults = centerName 
-                ? assessment.results.filter(r => r.participant.centre === centerName)
+                ? assessment.results.filter(r => r.participant.centre && r.participant.centre.toLowerCase() === centerName.toLowerCase())
                 : assessment.results;
                 
             const answers = filteredResults.map(r => r.answers[questionIndex]);
@@ -300,33 +315,73 @@ export default function AssessmentResponses() {
     }
 
     const downloadSubmissions = () => {
-        // Prepare CSV data
-        const headers = ['Name', 'Email', 'Department', 'Designation', 'Centre', 'Score', 'Submission Date'];
+        // Prepare CSV data with detailed headers
+        const headers = [
+            'Name', 'Email', 'Department', 'Designation', 'Centre', 
+            'Experience Level', 'Score', 'Submission Date', 'Additional Feedback'
+        ];
+
+        if (assessment.assessmentType === 'survey') {
+            // Add question headers dynamically
+            assessment.questions.forEach((q, index) => {
+                headers.push(`Q${index + 1} Response`);
+                headers.push(`Q${index + 1} Comments`);
+            });
+        } else {
+            // Add quiz-specific question headers
+            assessment.questions.forEach((q, index) => {
+                headers.push(`Q${index + 1} Selected Answer`);
+                headers.push(`Q${index + 1} Correct?`);
+                headers.push(`Q${index + 1} Points`);
+            });
+        }
+
         const csvRows = [headers];
 
         if (assessment.assessmentType === 'survey') {
             assessment.responses.forEach(response => {
-                csvRows.push([
-                    response.participantName,
-                    response.participantEmail,
-                    response.participantDepartment,
-                    response.participantDesignation,
-                    response.participantCentre,
+                const row = [
+                    response.participantName || '',
+                    response.participantEmail || '',
+                    response.participantDepartment || '',
+                    response.participantDesignation || '',
+                    response.participantCentre || '',
+                    'N/A', // Experience not applicable for surveys
                     'N/A', // Score not applicable for surveys
-                    new Date(response.submittedAt).toLocaleString()
-                ]);
+                    new Date(response.submittedAt).toLocaleString(),
+                    response.additionalFeedback || ''
+                ];
+
+                // Add response details for each question
+                response.responses.forEach(ans => {
+                    row.push(ans.response || '');
+                    row.push(ans.comments || '');
+                });
+
+                csvRows.push(row);
             });
         } else {
             assessment.results.forEach(result => {
-                csvRows.push([
-                    result.participant.name,
-                    result.participant.email,
-                    result.participant.department,
-                    result.participant.designation,
-                    result.participant.centre,
+                const row = [
+                    result.participant.name || '',
+                    result.participant.email || '',
+                    result.participant.department || '',
+                    result.participant.designation || '',
+                    result.participant.centre || '',
+                    result.participant.experience || '',
                     `${result.totalScore}%`,
-                    new Date(result.completedAt).toLocaleString()
-                ]);
+                    new Date(result.completedAt).toLocaleString(),
+                    'N/A' // Additional feedback not applicable for quizzes
+                ];
+
+                // Add answer details for each question
+                result.answers.forEach(ans => {
+                    row.push(assessment.questions[ans.questionIndex]?.options[ans.selectedOption] || '');
+                    row.push(ans.isCorrect ? 'Yes' : 'No');
+                    row.push(ans.points);
+                });
+
+                csvRows.push(row);
             });
         }
 
@@ -340,23 +395,27 @@ export default function AssessmentResponses() {
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         link.setAttribute('href', url);
-        link.setAttribute('download', `${assessment.title} - Submissions.csv`);
+        link.setAttribute('download', `${assessment.title} - Detailed Submissions.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
 
     // Function to generate and download center-specific report
-    const downloadCenterReport = (centerName) => {
+    const downloadCenterReport = (centerName) => { // centerName here might be lowercase from availableCenters
         if (!assessment) return;
         
+        // Find the original casing for the report title if needed, or just use the provided one
+        const displayCenterName = centerStats.find(c => c.name.toLowerCase() === centerName.toLowerCase())?.name || centerName;
+
         // Create headers and rows for CSV
         const headers = ['Question', 'Correct Answers', 'Incorrect Answers', 'Percentage Correct'];
         const csvRows = [headers];
         
-        // For each question, calculate stats for the specified center
+        // For each question, calculate stats for the specified center (case-insensitive)
         assessment.questions.forEach((question, index) => {
-            const stats = calculateResponseStats(index, centerName);
+            // Pass the potentially lowercase centerName to calculateResponseStats
+            const stats = calculateResponseStats(index, centerName); 
             const correctStat = stats.find(s => s.option === 'Correct') || { count: 0, percentage: 0 };
             const incorrectStat = stats.find(s => s.option === 'Incorrect') || { count: 0, percentage: 0 };
             
@@ -378,7 +437,7 @@ export default function AssessmentResponses() {
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         link.setAttribute('href', url);
-        link.setAttribute('download', `${assessment.title} - ${centerName} Report.csv`);
+        link.setAttribute('download', `${assessment.title} - ${displayCenterName} Report.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -778,21 +837,32 @@ export default function AssessmentResponses() {
                 </div>
 
                 <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 mb-10">
-                    <h2 className="text-xl font-semibold text-slate-800 mb-4">Response Summary</h2>
-                    <div className="flex items-center text-sm text-gray-600 space-x-6">
-                        <span className="flex items-center">
-                            <UserCircleIcon className="h-5 w-5 mr-1.5 text-gray-400" />
-                            {assessment.assessmentType === 'survey' 
-                                ? `${assessment.responses.length} total responses`
-                                : `${assessment.results.length} total submissions`
-                            }
-                        </span>
-                        {assessment.assessmentType !== 'survey' && (
-                            <span className="flex items-center">
-                                <CheckCircleIcon className="h-5 w-5 mr-1.5 text-green-500" />
-                                Average Score: {calculateAvgScore()}%
-                            </span>
-                        )}
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <h2 className="text-xl font-semibold text-slate-800 mb-4">Response Summary</h2>
+                            <div className="flex items-center text-sm text-gray-600 space-x-6">
+                                <span className="flex items-center">
+                                    <UserCircleIcon className="h-5 w-5 mr-1.5 text-gray-400" />
+                                    {assessment.assessmentType === 'survey' 
+                                        ? `${assessment.responses.length} total responses`
+                                        : `${assessment.results.length} total submissions`
+                                    }
+                                </span>
+                                {assessment.assessmentType !== 'survey' && (
+                                    <span className="flex items-center">
+                                        <CheckCircleIcon className="h-5 w-5 mr-1.5 text-green-500" />
+                                        Average Score: {calculateAvgScore()}%
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <button
+                            onClick={downloadSubmissions}
+                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        >
+                            <ArrowDownTrayIcon className="h-5 w-5 text-gray-500" />
+                            Download All Responses
+                        </button>
                     </div>
                 </div>
 
@@ -801,87 +871,98 @@ export default function AssessmentResponses() {
                     <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 mb-10">
                         <h2 className="text-xl font-semibold text-slate-800 mb-6">Centers Performance Summary</h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {centerStats.map((center, index) => (
-                                <div key={index} className="border border-gray-100 rounded-lg p-4 hover:shadow-md transition-shadow duration-200">
-                                    <div className="flex items-center mb-3">
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(center.name)}`}>
-                                            <BuildingOfficeIcon className="h-3 w-3 mr-1" />
-                                            {center.name}
-                                        </span>
-                                        <span className="text-sm text-gray-600 ml-2">{center.count} {assessment.assessmentType === 'survey' ? 'responses' : 'participants'}</span>
-                                    </div>
-                                    
-                                    {assessment.assessmentType !== 'survey' && (
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between items-center text-sm">
-                                                <span className="text-gray-600">Average Score</span>
-                                                <span className="font-medium">{center.avgScore}%</span>
-                                            </div>
-                                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                <div 
-                                                    className={`h-full rounded-full ${
-                                                        center.avgScore >= (assessment.passingScore || 70) 
-                                                            ? 'bg-green-500' 
-                                                            : 'bg-red-500'
-                                                    }`}
-                                                    style={{ width: `${center.avgScore}%` }}
-                                                />
-                                            </div>
-                                            
-                                            <div className="flex justify-between items-center text-sm mt-3">
-                                                <span className="text-gray-600">Top Score</span>
-                                                <span className="font-medium">{center.highestScore}%</span>
-                                            </div>
-                                            
-                                            {center.participants.length > 0 && (
-                                                <div className="mt-3 pt-3 border-t border-gray-100">
-                                                    <div className="text-xs text-gray-500 mb-1">Top Performers</div>
-                                                    <div className="max-h-24 overflow-y-auto">
-                                                        {center.participants
-                                                            .sort((a, b) => b.score - a.score)
-                                                            .slice(0, 3)
-                                                            .map((participant, idx) => (
-                                                                <div key={idx} className="flex justify-between text-sm py-1">
-                                                                    <span className="text-gray-700 truncate" style={{maxWidth: "70%"}}>{participant.name}</span>
-                                                                    {assessment.assessmentType !== 'survey' && (
-                                                                        <span className="font-medium">{participant.score}%</span>
-                                                                    )}
-                                                                </div>
-                                                            ))
-                                                        }
-                                                    </div>
-                                                </div>                                            )}
+                            {centerStats.map((center, index) => {
+                                // Function to capitalize the first letter for display
+                                const capitalize = (s) => s && s.charAt(0).toUpperCase() + s.slice(1);
+                                const displayCenterName = capitalize(center.nameKey === 'unspecified' ? 'Unspecified' : center.displayName); // Prefer original casing if not 'unspecified'
+
+                                return (
+                                    <div key={index} className="border border-gray-100 rounded-lg p-4 hover:shadow-md transition-shadow duration-200">
+                                        <div className="flex items-center mb-3">
+                                            {/* Use nameKey for color consistency, displayCenterName for text */}
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(center.nameKey)}`}>
+                                                <BuildingOfficeIcon className="h-3 w-3 mr-1" />
+                                                {displayCenterName}
+                                            </span>
+                                            <span className="text-sm text-gray-600 ml-2">{center.count} {assessment.assessmentType === 'survey' ? 'responses' : 'participants'}</span>
                                         </div>
-                                    )}
-                                    
-                                    <div className="flex justify-between items-center mt-3">
-                                        {assessment.assessmentType === 'survey' ? (
-                                            <button 
-                                                onClick={() => setCenterFilter(center.name)} 
-                                                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                                            >
-                                                View Responses
-                                            </button>
-                                        ) : (
-                                            <>
+                                        
+                                        {assessment.assessmentType !== 'survey' && (
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between items-center text-sm">
+                                                    <span className="text-gray-600">Average Score</span>
+                                                    <span className="font-medium">{center.avgScore}%</span>
+                                                </div>
+                                                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className={`h-full rounded-full ${
+                                                            center.avgScore >= (assessment.passingScore || 70) 
+                                                                ? 'bg-green-500' 
+                                                                : 'bg-red-500'
+                                                        }`}
+                                                        style={{ width: `${center.avgScore}%` }}
+                                                    />
+                                                </div>
+                                                
+                                                <div className="flex justify-between items-center text-sm mt-3">
+                                                    <span className="text-gray-600">Top Score</span>
+                                                    <span className="font-medium">{center.highestScore}%</span>
+                                                </div>
+                                                
+                                                {center.participants.length > 0 && (
+                                                    <div className="mt-3 pt-3 border-t border-gray-100">
+                                                        <div className="text-xs text-gray-500 mb-1">Top Performers</div>
+                                                        <div className="max-h-24 overflow-y-auto">
+                                                            {center.participants
+                                                                .sort((a, b) => b.score - a.score)
+                                                                .slice(0, 3)
+                                                                .map((participant, idx) => (
+                                                                    <div key={idx} className="flex justify-between text-sm py-1">
+                                                                        <span className="text-gray-700 truncate" style={{maxWidth: "70%"}}>{participant.name}</span>
+                                                                        {assessment.assessmentType !== 'survey' && (
+                                                                            <span className="font-medium">{participant.score}%</span>
+                                                                        )}
+                                                                    </div>
+                                                                ))
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        
+                                        <div className="flex justify-between items-center mt-3">
+                                            {assessment.assessmentType === 'survey' ? (
                                                 <button 
-                                                    onClick={() => setCenterFilter(center.name)} 
+                                                    // Use nameKey (lowercase) for filtering consistency
+                                                    onClick={() => setCenterFilter(center.nameKey)} 
                                                     className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                                                 >
-                                                    View Details
+                                                    View Responses
                                                 </button>
-                                                <button 
-                                                    onClick={() => downloadCenterReport(center.name)} 
-                                                    className="text-sm text-gray-600 hover:text-gray-800 flex items-center"
-                                                >
-                                                    <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
-                                                    Export
-                                                </button>
-                                            </>
-                                        )}
+                                            ) : (
+                                                <>
+                                                    <button 
+                                                        // Use nameKey (lowercase) for filtering consistency
+                                                        onClick={() => setCenterFilter(center.nameKey)} 
+                                                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                                    >
+                                                        View Details
+                                                    </button>
+                                                    <button 
+                                                        // Use nameKey (lowercase) for report generation consistency
+                                                        onClick={() => downloadCenterReport(center.nameKey)} 
+                                                        className="text-sm text-gray-600 hover:text-gray-800 flex items-center"
+                                                    >
+                                                        <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
+                                                        Export
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -899,7 +980,10 @@ export default function AssessmentResponses() {
                                 >
                                     <option value="">All Centers</option>
                                     {availableCenters.map(center => (
-                                        <option key={center} value={center}>{center}</option>
+                                        // Display capitalized center name in dropdown, value is lowercase
+                                        <option key={center} value={center}>
+                                            {center.charAt(0).toUpperCase() + center.slice(1)}
+                                        </option>
                                     ))}
                                 </select>
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -1094,7 +1178,10 @@ export default function AssessmentResponses() {
                                     >
                                         <option value="">All Centers</option>
                                         {availableCenters.map(center => (
-                                            <option key={center} value={center}>{center}</option>
+                                            // Display capitalized center name in dropdown, value is lowercase
+                                            <option key={center} value={center}>
+                                                {center.charAt(0).toUpperCase() + center.slice(1)}
+                                            </option>
                                         ))}
                                     </select>
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
