@@ -9,7 +9,9 @@ export const normalizeCentreName = (name) => {
         normalized = 'mumbai'; 
     } else if (normalized === 'new delhi') {
         normalized = 'delhi';
-    } 
+    } else if (normalized === 'bangalore') { // Add this rule
+        normalized = 'bengaluru';
+    }
     // Add more rules if needed, e.g., for variations of Kolkata, IAA etc.
     // else if (normalized.includes('iaa') && normalized.includes('delhi')) {
     //     normalized = 'delhi';
