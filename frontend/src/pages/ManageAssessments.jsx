@@ -17,7 +17,7 @@ export default function ManageAssessments() {
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
     const [showDeleteQuestionConfirmation, setShowDeleteQuestionConfirmation] = useState(false);
     const [questionToDeleteIndex, setQuestionToDeleteIndex] = useState(null);
-    const [isEditingQuestion, setIsEditingQuestion] = useState(false);
+    const [isEditingQuestion, setIsEditingQuestion] = useState(false); // Tracks if question deletion is for edit form
     const [openMenuId, setOpenMenuId] = useState(null);
 
     const [newAssessment, setNewAssessment] = useState({
@@ -69,13 +69,14 @@ export default function ManageAssessments() {
         }
     };
 
-    const addQuestion = () => {
-        setNewAssessment(prev => ({
+    const addQuestion = (isEditing = false) => {
+        const stateSetter = isEditing ? setSelectedAssessment : setNewAssessment;
+        stateSetter(prev => ({
             ...prev,
             questions: [...prev.questions, {
                 question: '',
                 questionType: prev.assessmentType,
-                options: prev.assessmentType === 'survey' 
+                options: prev.assessmentType === 'survey'
                     ? ['No', 'Little', 'Somewhat', 'Mostly', 'Completely']
                     : ['', '', '', ''],
                 allowComments: prev.assessmentType === 'survey',
@@ -85,17 +86,23 @@ export default function ManageAssessments() {
         }));
     };
 
-    const handleQuestionChange = (index, field, value) => {
-        setNewAssessment(prev => {
+    const handleQuestionChange = (index, field, value, isEditing = false) => {
+        const stateSetter = isEditing ? setSelectedAssessment : setNewAssessment;
+        stateSetter(prev => {
             const questions = [...prev.questions];
             questions[index] = { ...questions[index], [field]: value };
-            
+
+            // Reset correctOption if options array changes and correctOption becomes invalid
             if (field === 'options' && Array.isArray(value)) {
                 if (questions[index].correctOption >= value.length) {
                     questions[index].correctOption = null;
                 }
             }
-            
+            // Ensure points are numbers
+            if (field === 'points') {
+                questions[index].points = Number(value) || 0;
+            }
+
             return { ...prev, questions };
         });
     };
@@ -107,7 +114,7 @@ export default function ManageAssessments() {
             questions: prev.questions.map(q => ({
                 ...q,
                 questionType: type,
-                options: type === 'survey' 
+                options: type === 'survey'
                     ? ['No', 'Little', 'Somewhat', 'Mostly', 'Completely']
                     : ['', '', '', ''],
                 allowComments: type === 'survey',
@@ -128,7 +135,7 @@ export default function ManageAssessments() {
         const loadingToast = toast.loading('Creating assessment...');
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
-            
+
             // Validate required fields for quiz type
             if (newAssessment.assessmentType === 'quiz') {
                 for (const question of newAssessment.questions) {
@@ -212,29 +219,47 @@ export default function ManageAssessments() {
 
     const handleUpdateAssessment = async (e) => {
         e.preventDefault();
+        if (!selectedAssessment.questions.some(q => q.question.trim())) {
+            toast.error('Please ensure all questions have content');
+            return;
+        }
         setSubmitting(true);
         const loadingToast = toast.loading('Updating assessment...');
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
-            // Only send title and description in the update
-            const updateData = {
-                title: selectedAssessment.title,
-                description: selectedAssessment.description
-            };
+
+            // Validate required fields for quiz type during update
+            if (selectedAssessment.assessmentType === 'quiz') {
+                for (const question of selectedAssessment.questions) {
+                    if (question.correctOption === null) {
+                        toast.error('Please select correct answers for all quiz questions', { id: loadingToast });
+                        setSubmitting(false);
+                        return;
+                    }
+                    if (!question.options || question.options.length < 2 || question.options.some(opt => !opt.trim())) {
+                         toast.error('Please ensure all quiz questions have at least two non-empty options.', { id: loadingToast });
+                         setSubmitting(false);
+                         return;
+                    }
+                }
+            }
+
+
+            // Send the entire updated assessment object
             await axios.put(
                 `${import.meta.env.VITE_API_URL}/api/assessment/${selectedAssessment._id}`,
-                updateData,
+                selectedAssessment, // Send the whole object
                 {
                     headers: { Authorization: `Bearer ${token}` }
                 }
             );
             setShowEditForm(false);
             setSelectedAssessment(null);
-            fetchAssessments();
+            fetchAssessments(); // Refetch to show updated data
             toast.success('Assessment updated successfully!', { id: loadingToast });
         } catch (error) {
             console.error('Failed to update assessment:', error);
-            toast.error('Failed to update assessment. Please try again.', { id: loadingToast });
+            toast.error(error.response?.data?.message || 'Failed to update assessment. Please try again.', { id: loadingToast });
         } finally {
             setSubmitting(false);
         }
@@ -263,23 +288,14 @@ export default function ManageAssessments() {
         }
     };
 
-    const removeQuestion = (index) => {
-        if (newAssessment.questions.length <= 1) {
+    const removeQuestion = (index, isEditing = false) => {
+        const questions = isEditing ? selectedAssessment.questions : newAssessment.questions;
+        if (questions.length <= 1) {
             toast.error("An assessment must have at least one question.");
             return;
         }
         setQuestionToDeleteIndex(index);
-        setIsEditingQuestion(false);
-        setShowDeleteQuestionConfirmation(true);
-    };
-
-    const removeQuestionFromEdit = (index) => {
-        if (selectedAssessment.questions.length <= 1) {
-            toast.error("An assessment must have at least one question.");
-            return;
-        }
-        setQuestionToDeleteIndex(index);
-        setIsEditingQuestion(true);
+        setIsEditingQuestion(isEditing); // Set context for deletion confirmation
         setShowDeleteQuestionConfirmation(true);
     };
 
@@ -287,19 +303,15 @@ export default function ManageAssessments() {
         const index = questionToDeleteIndex;
         if (index === null) return;
 
-        if (isEditingQuestion) {
-            setSelectedAssessment(prev => ({
-                ...prev,
-                questions: prev.questions.filter((_, i) => i !== index)
-            }));
-        } else {
-            setNewAssessment(prev => ({
-                ...prev,
-                questions: prev.questions.filter((_, i) => i !== index)
-            }));
-        }
+        const stateSetter = isEditingQuestion ? setSelectedAssessment : setNewAssessment;
+        stateSetter(prev => ({
+            ...prev,
+            questions: prev.questions.filter((_, i) => i !== index)
+        }));
+
         setShowDeleteQuestionConfirmation(false);
         setQuestionToDeleteIndex(null);
+        setIsEditingQuestion(false); // Reset flag
         toast.success('Question removed.');
     };
 
@@ -416,9 +428,9 @@ export default function ManageAssessments() {
                                             <input
                                                 type="number"
                                                 value={newAssessment.timeLimit || ''}
-                                                onChange={(e) => setNewAssessment(prev => ({ 
-                                                    ...prev, 
-                                                    timeLimit: e.target.value ? Number(e.target.value) : null 
+                                                onChange={(e) => setNewAssessment(prev => ({
+                                                    ...prev,
+                                                    timeLimit: e.target.value ? Number(e.target.value) : null
                                                 }))}
                                                 className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
                                                 min="1"
@@ -430,9 +442,9 @@ export default function ManageAssessments() {
                                             <input
                                                 type="number"
                                                 value={newAssessment.passingScore || ''}
-                                                onChange={(e) => setNewAssessment(prev => ({ 
-                                                    ...prev, 
-                                                    passingScore: e.target.value ? Number(e.target.value) : null 
+                                                onChange={(e) => setNewAssessment(prev => ({
+                                                    ...prev,
+                                                    passingScore: e.target.value ? Number(e.target.value) : null
                                                 }))}
                                                 className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
                                                 min="0"
@@ -460,7 +472,7 @@ export default function ManageAssessments() {
                                             {newAssessment.questions.length > 1 && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => removeQuestion(index)}
+                                                    onClick={() => removeQuestion(index, false)} // Pass false for create form
                                                     className="absolute top-2 right-2 p-1 bg-red-100 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                                                 >
                                                     <XMarkIcon className="h-4 w-4" />
@@ -474,7 +486,7 @@ export default function ManageAssessments() {
                                                 <input
                                                     type="text"
                                                     value={q.question}
-                                                    onChange={(e) => handleQuestionChange(index, 'question', e.target.value)}
+                                                    onChange={(e) => handleQuestionChange(index, 'question', e.target.value, false)}
                                                     className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
                                                     required
                                                 />
@@ -490,7 +502,7 @@ export default function ManageAssessments() {
                                                             onChange={(e) => {
                                                                 const newOptions = [...q.options];
                                                                 newOptions[optIndex] = e.target.value;
-                                                                handleQuestionChange(index, 'options', newOptions);
+                                                                handleQuestionChange(index, 'options', newOptions, false);
                                                             }}
                                                             className="block w-full rounded-lg border border-gray-300 px-3 py-2"
                                                             required
@@ -501,7 +513,7 @@ export default function ManageAssessments() {
                                                                     type="radio"
                                                                     name={`correct-${index}`}
                                                                     checked={q.correctOption === optIndex}
-                                                                    onChange={() => handleQuestionChange(index, 'correctOption', optIndex)}
+                                                                    onChange={() => handleQuestionChange(index, 'correctOption', optIndex, false)}
                                                                     className="form-radio h-4 w-4 text-blue-600"
                                                                     required
                                                                 />
@@ -517,7 +529,7 @@ export default function ManageAssessments() {
                                                         <input
                                                             type="number"
                                                             value={q.points}
-                                                            onChange={(e) => handleQuestionChange(index, 'points', Number(e.target.value))}
+                                                            onChange={(e) => handleQuestionChange(index, 'points', Number(e.target.value), false)}
                                                             className="mt-1 block w-24 rounded-lg border border-gray-300 px-3 py-2"
                                                             min="0"
                                                             required
@@ -532,7 +544,7 @@ export default function ManageAssessments() {
                                                         type="checkbox"
                                                         id={`allowComments-${index}`}
                                                         checked={q.allowComments}
-                                                        onChange={(e) => handleQuestionChange(index, 'allowComments', e.target.checked)}
+                                                        onChange={(e) => handleQuestionChange(index, 'allowComments', e.target.checked, false)}
                                                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                                     />
                                                     <label htmlFor={`allowComments-${index}`} className="ml-2 text-sm text-gray-700">
@@ -542,6 +554,7 @@ export default function ManageAssessments() {
                                             )}
                                         </div>
                                     ))}
+
                                 </div>
 
                                 <div className="flex justify-end space-x-4 pt-6 mt-6 border-t border-gray-200">
@@ -559,6 +572,7 @@ export default function ManageAssessments() {
                                     >
                                         {submitting ? (
                                             <>
+
                                                 <LoadingSpinner size="small" className="mr-2" />
                                                 Creating...
                                             </>
@@ -570,15 +584,15 @@ export default function ManageAssessments() {
                     </div>
                 )}
 
-                {showEditForm && (
+                {showEditForm && selectedAssessment && ( // Ensure selectedAssessment is not null
                     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                         <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
                             <div className="flex justify-between items-start mb-6">
                                 <div>
                                     <h2 className="text-2xl font-semibold text-slate-800">Edit Assessment</h2>
-                                    <p className="text-sm text-gray-500 mt-1">You can modify the title and description of this assessment.</p>
+                                    <p className="text-sm text-gray-500 mt-1">Modify the assessment details and questions.</p> {/* Updated description */}
                                 </div>
-                                <button onClick={() => setShowEditForm(false)} className="text-gray-400 hover:text-gray-600">
+                                <button onClick={() => { setShowEditForm(false); setSelectedAssessment(null); }} className="text-gray-400 hover:text-gray-600">
                                     <XMarkIcon className="h-6 w-6" />
                                 </button>
                             </div>
@@ -606,10 +620,157 @@ export default function ManageAssessments() {
                                     />
                                 </div>
 
+                                {/* Display Assessment Type (Read-only in edit mode) */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Assessment Type</label>
+                                    <span className="text-sm bg-blue-50 text-blue-700 px-2 py-1 rounded-full capitalize">
+                                        {selectedAssessment.assessmentType}
+                                    </span>
+                                </div>
+
+                                {/* Display Quiz specific fields (Read-only in edit mode) */}
+                                {selectedAssessment.assessmentType === 'quiz' && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700">Time Limit (minutes)</label>
+                                            <input
+                                                type="number"
+                                                value={selectedAssessment.timeLimit || ''}
+                                                onChange={(e) => setSelectedAssessment(prev => ({
+                                                    ...prev,
+                                                    timeLimit: e.target.value ? Number(e.target.value) : null
+                                                }))}
+                                                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                                min="1"
+                                                placeholder="Optional"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700">Passing Score (%)</label>
+                                            <input
+                                                type="number"
+                                                value={selectedAssessment.passingScore || ''}
+                                                onChange={(e) => setSelectedAssessment(prev => ({
+                                                    ...prev,
+                                                    passingScore: e.target.value ? Number(e.target.value) : null
+                                                }))}
+                                                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                                min="0"
+                                                max="100"
+                                                placeholder="Optional"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+
+                                {/* Questions Section for Editing */}
+                                <div className="space-y-4 pt-4 border-t border-gray-200">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="text-lg font-medium text-slate-800">Questions</h3>
+                                        <button
+                                            type="button"
+                                            onClick={() => addQuestion(true)} // Pass true for edit form
+                                            className="bg-gray-100 text-gray-700 px-3 py-1 rounded-md hover:bg-gray-200"
+                                        >
+                                            Add Question
+                                        </button>
+                                    </div>
+
+                                    {selectedAssessment.questions.map((q, index) => (
+                                        <div key={index} className="bg-gray-50 p-4 rounded-lg space-y-4 relative group">
+                                            {selectedAssessment.questions.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeQuestion(index, true)} // Pass true for edit form
+                                                    className="absolute top-2 right-2 p-1 bg-red-100 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <XMarkIcon className="h-4 w-4" />
+                                                </button>
+                                            )}
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700">
+                                                    Question {index + 1}
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={q.question}
+                                                    onChange={(e) => handleQuestionChange(index, 'question', e.target.value, true)}
+                                                    className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                                    required
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 mb-2">Options</label>
+                                                {q.options.map((option, optIndex) => (
+                                                    <div key={optIndex} className="flex items-center mb-2">
+                                                        <input
+                                                            type="text"
+                                                            value={option}
+                                                            onChange={(e) => {
+                                                                const newOptions = [...q.options];
+                                                                newOptions[optIndex] = e.target.value;
+                                                                handleQuestionChange(index, 'options', newOptions, true);
+                                                            }}
+                                                            className="block w-full rounded-lg border border-gray-300 px-3 py-2"
+                                                            required={selectedAssessment.assessmentType === 'quiz'} // Options required for quiz
+                                                            readOnly={selectedAssessment.assessmentType === 'survey'} // Readonly for survey default options
+                                                        />
+                                                        {selectedAssessment.assessmentType === 'quiz' && (
+                                                            <div className="ml-2">
+                                                                <input
+                                                                    type="radio"
+                                                                    name={`edit-correct-${index}`} // Unique name for edit form radios
+                                                                    checked={q.correctOption === optIndex}
+                                                                    onChange={() => handleQuestionChange(index, 'correctOption', optIndex, true)}
+                                                                    className="form-radio h-4 w-4 text-blue-600"
+                                                                    required
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                {selectedAssessment.assessmentType === 'quiz' && (
+                                                    <div className="mt-2">
+                                                        <label className="block text-sm font-medium text-slate-700">
+                                                            Points for this question
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            value={q.points}
+                                                            onChange={(e) => handleQuestionChange(index, 'points', Number(e.target.value), true)}
+                                                            className="mt-1 block w-24 rounded-lg border border-gray-300 px-3 py-2"
+                                                            min="0"
+                                                            required
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {selectedAssessment.assessmentType === 'survey' && (
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        id={`edit-allowComments-${index}`}
+                                                        checked={q.allowComments}
+                                                        onChange={(e) => handleQuestionChange(index, 'allowComments', e.target.checked, true)}
+                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                    />
+                                                    <label htmlFor={`edit-allowComments-${index}`} className="ml-2 text-sm text-gray-700">
+                                                        Allow additional comments for this question
+                                                    </label>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
                                 <div className="flex justify-end space-x-4 pt-6 mt-6 border-t border-gray-200">
                                     <button
                                         type="button"
-                                        onClick={() => setShowEditForm(false)}
+                                        onClick={() => { setShowEditForm(false); setSelectedAssessment(null); }}
                                         className="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                                     >
                                         Cancel
@@ -661,7 +822,7 @@ export default function ManageAssessments() {
                                                 </svg>
                                             </button>
                                             {openMenuId === assessment._id && (
-                                                <div 
+                                                <div
                                                     className="absolute right-0 mt-2 w-56 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50"
                                                     style={{
                                                         transform: 'translateY(0)',
@@ -681,10 +842,10 @@ export default function ManageAssessments() {
                                                                 }}
                                                                 className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
                                                             >
-                                                                <PencilIcon className="h-5 w-5 text-gray-500" /> 
+                                                                <PencilIcon className="h-5 w-5 text-gray-500" />
                                                                 <div>
                                                                     <div className="font-medium">Edit Assessment</div>
-                                                                    <div className="text-xs text-gray-500">Modify assessment details and questions</div>
+                                                                    <div className="text-xs text-gray-500">Modify assessment details and questions</div> {/* Updated description */}
                                                                 </div>
                                                             </button>
                                                             <button
@@ -816,6 +977,7 @@ export default function ManageAssessments() {
                                     onClick={() => {
                                         setShowDeleteQuestionConfirmation(false);
                                         setQuestionToDeleteIndex(null);
+                                        setIsEditingQuestion(false); // Reset flag on cancel
                                     }}
                                     className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
                                 >
