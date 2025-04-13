@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react'; // Added useMemo
 import axios from 'axios';
 import { 
     UserGroupIcon, 
@@ -6,6 +6,7 @@ import {
     AcademicCapIcon,
     ClockIcon
 } from '@heroicons/react/24/outline';
+import { normalizeCentreName, getStandardizedCenterName } from '../utils/helpers'; // Import helpers
 
 export default function AnalyticsSection({ assessmentId }) {
     const [analytics, setAnalytics] = useState(null);
@@ -33,6 +34,55 @@ export default function AnalyticsSection({ assessmentId }) {
             setLoading(false);
         }
     };
+
+    // Process and aggregate centre stats using normalization
+    const processedCentreStats = useMemo(() => {
+        if (!analytics?.centreStats) return {};
+
+        const aggregatedStats = {};
+
+        Object.entries(analytics.centreStats).forEach(([originalName, stats]) => {
+            const normalizedKey = normalizeCentreName(originalName);
+            const displayName = getStandardizedCenterName(originalName); // Get display name based on normalized key
+
+            if (!aggregatedStats[normalizedKey]) {
+                aggregatedStats[normalizedKey] = {
+                    displayName: displayName, // Store the display name
+                    count: 0,
+                    totalScore: 0, // Keep track of total score for averaging
+                    hasScore: stats.avgScore !== undefined, // Check if this group has scores
+                };
+            }
+
+            aggregatedStats[normalizedKey].count += stats.count;
+            if (stats.avgScore !== undefined) {
+                // Weight the average score by the count for accurate aggregation
+                aggregatedStats[normalizedKey].totalScore += (stats.avgScore * stats.count);
+            }
+        });
+
+        // Calculate final average scores and format for StatCard
+        const finalStats = {};
+        Object.entries(aggregatedStats).forEach(([key, aggregated]) => {
+            const avgScore = aggregated.hasScore && aggregated.count > 0 
+                ? Math.round(aggregated.totalScore / aggregated.count) 
+                : undefined;
+            
+            finalStats[aggregated.displayName] = { // Use displayName as the key for the StatCard
+                count: aggregated.count,
+                avgScore: avgScore,
+            };
+        });
+
+        // Sort by display name for consistent order
+        return Object.entries(finalStats)
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .reduce((obj, [key, value]) => {
+                obj[key] = value;
+                return obj;
+            }, {});
+
+    }, [analytics]);
 
     if (loading) {
         return <div className="text-center py-8">Loading analytics...</div>;
@@ -62,7 +112,7 @@ export default function AnalyticsSection({ assessmentId }) {
                         {value.avgScore !== undefined && (
                             <div className="text-right">
                                 <p className="text-sm font-medium text-blue-600">
-                                    {value.avgScore}%
+                                    {value.avgScore}% 
                                 </p>
                                 <p className="text-xs text-gray-500">avg score</p>
                             </div>
@@ -119,7 +169,7 @@ export default function AnalyticsSection({ assessmentId }) {
                 <StatCard 
                     icon={BuildingOfficeIcon}
                     title="Responses by Centre"
-                    stats={analytics.centreStats}
+                    stats={processedCentreStats} // Use processed stats
                 />
                 <StatCard 
                     icon={UserGroupIcon}

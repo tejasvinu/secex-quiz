@@ -18,6 +18,7 @@ import {
     ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { normalizeCentreName, getStandardizedCenterName } from '../utils/helpers'; // Import helpers
 
 export default function AssessmentResponses() {
     const { id } = useParams();
@@ -49,30 +50,33 @@ export default function AssessmentResponses() {
             direction = 'descending';
         }
         setSortConfig({ key, direction });
-    };
-
-    // Get all available centers for filtering
+    };    // Get all available centers for filtering
     const availableCenters = useMemo(() => {
         if (!assessment) return [];
         
-        const centers = new Set();
+        // Use a Map to track normalized keys and their display names
+        const centerMap = new Map();
+        
         if (assessment.assessmentType === 'survey') {
             assessment.responses.forEach(response => {
                 if (response.participantCentre) {
-                    // Convert to lowercase for case-insensitive grouping
-                    centers.add(response.participantCentre.toLowerCase());
+                    const normalizedKey = normalizeCentreName(response.participantCentre);
+                    centerMap.set(normalizedKey, getStandardizedCenterName(response.participantCentre));
                 }
             });
         } else {
             assessment.results.forEach(result => {
                 if (result.participant.centre) {
-                    // Convert to lowercase for case-insensitive grouping
-                    centers.add(result.participant.centre.toLowerCase());
+                    const normalizedKey = normalizeCentreName(result.participant.centre);
+                    centerMap.set(normalizedKey, getStandardizedCenterName(result.participant.centre));
                 }
             });
         }
-        // Sort alphabetically
-        return Array.from(centers).sort();
+        
+        // Get unique keys sorted alphabetically
+        const normalizedKeys = Array.from(centerMap.keys()).sort();
+        
+        return normalizedKeys;
     }, [assessment]);
 
     // Get sorted and filtered responses/results
@@ -85,15 +89,14 @@ export default function AssessmentResponses() {
         } else {
             items = [...assessment.results];
         }
-        
-        // Apply center filter (case-insensitive)
+          // Apply center filter using normalized names
         if (centerFilter) {
             items = items.filter(item => {
                 const center = assessment.assessmentType === 'survey' 
                     ? item.participantCentre 
                     : item.participant.centre;
-                // Compare in lowercase
-                return center && center.toLowerCase() === centerFilter.toLowerCase();
+                // Compare using our normalization function for case-insensitive matching
+                return center && normalizeCentreName(center) === centerFilter;
             });
         }
         
@@ -124,9 +127,7 @@ export default function AssessmentResponses() {
             }
             return 0;
         });
-    }, [assessment, sortConfig, centerFilter]);
-
-    // Calculate center-specific statistics
+    }, [assessment, sortConfig, centerFilter]);    // Calculate center-specific statistics
     const centerStats = useMemo(() => {
         if (!assessment) return [];
         
@@ -134,14 +135,15 @@ export default function AssessmentResponses() {
         
         if (assessment.assessmentType !== 'survey') {
             assessment.results.forEach(result => {
-                const originalCentreName = result.participant.centre?.trim() || 'Unspecified';
-                const centreKey = originalCentreName.toLowerCase(); 
-                console.log('Centre Key:', centreKey); // Debugging line
+                const originalCentreName = result.participant.centre || 'Unspecified';
+                // Use the robust normalization function
+                const centreKey = normalizeCentreName(originalCentreName); 
+                
                 if (!stats[centreKey]) {
                     stats[centreKey] = {
-                        // Store the lowercase key itself. We'll format it for display later.
                         nameKey: centreKey, 
-                        displayName: originalCentreName, // Keep original for potential reference, but don't rely on it for grouping/display consistency
+                        // Store a standardized display name for consistent UI presentation
+                        displayName: getStandardizedCenterName(originalCentreName),
                         count: 0,
                         totalScore: 0,
                         highestScore: 0,
@@ -149,6 +151,7 @@ export default function AssessmentResponses() {
                     };
                 }
                 
+                // Update stats for the normalized key
                 stats[centreKey].count++;
                 stats[centreKey].totalScore += result.totalScore;
                 stats[centreKey].highestScore = Math.max(stats[centreKey].highestScore, result.totalScore);
@@ -163,19 +166,20 @@ export default function AssessmentResponses() {
             });
         } else {
             assessment.responses.forEach(response => {
-                const originalCentreName = response.participantCentre?.trim() || 'Unspecified';
-                const centreKey = originalCentreName.toLowerCase();
+                const originalCentreName = response.participantCentre || 'Unspecified';
+                // Use the robust normalization function
+                const centreKey = normalizeCentreName(originalCentreName);
                 
                 if (!stats[centreKey]) {
                     stats[centreKey] = {
-                        // Store the lowercase key itself.
                         nameKey: centreKey, 
-                        displayName: originalCentreName, // Keep original for potential reference
+                        originalDisplayName: originalCentreName,
                         count: 0,
                         participants: []
                     };
                 }
                 
+                // Update stats for the normalized key
                 stats[centreKey].count++;
                 stats[centreKey].participants.push({
                     name: response.participantName
@@ -183,8 +187,13 @@ export default function AssessmentResponses() {
             });
         }
         
+        // Sort the results based on assessment type and nameKey
         return Object.values(stats).sort((a, b) => {
-            // Fallback sort by name (case-insensitive using nameKey)
+            if (assessment.assessmentType === 'survey') {
+                if (b.count !== a.count) return b.count - a.count;
+            } else {
+                if (b.avgScore !== a.avgScore) return b.avgScore - a.avgScore;
+            }
             return (a.nameKey || '').localeCompare((b.nameKey || ''));
         });
     }, [assessment]);
@@ -228,10 +237,13 @@ export default function AssessmentResponses() {
     };    const calculateResponseStats = (questionIndex, centerName = null) => {
         if (!assessment) return []; // Added check for assessment
 
+        // Normalize the filter center name if provided
+        const normalizedFilterCenter = centerName ? normalizeCentreName(centerName) : null;
+
         if (assessment.assessmentType === 'survey') {
-            // Filter responses by center if provided (case-insensitive)
-            const filteredResponses = centerName 
-                ? assessment.responses.filter(r => r.participantCentre && r.participantCentre.toLowerCase() === centerName.toLowerCase())
+            // Filter responses by normalized center name if provided
+            const filteredResponses = normalizedFilterCenter
+                ? assessment.responses.filter(r => normalizeCentreName(r.participantCentre) === normalizedFilterCenter)
                 : assessment.responses;
                 
             const responses = filteredResponses.map(r => r.responses[questionIndex]?.response);
@@ -251,9 +263,9 @@ export default function AssessmentResponses() {
                 percentage: totalResponses ? Math.round((stats[option] || 0) / totalResponses * 100) : 0
             }));
         } else {
-            // Filter results by center if provided (case-insensitive)
-            const filteredResults = centerName 
-                ? assessment.results.filter(r => r.participant.centre && r.participant.centre.toLowerCase() === centerName.toLowerCase())
+            // Filter results by normalized center name if provided
+            const filteredResults = normalizedFilterCenter
+                ? assessment.results.filter(r => normalizeCentreName(r.participant.centre) === normalizedFilterCenter)
                 : assessment.results;
                 
             const answers = filteredResults.map(r => r.answers[questionIndex]);
@@ -402,19 +414,19 @@ export default function AssessmentResponses() {
     };
 
     // Function to generate and download center-specific report
-    const downloadCenterReport = (centerName) => { // centerName here might be lowercase from availableCenters
+    const downloadCenterReport = (centerName) => { // centerName here is the normalized (lowercase) key
         if (!assessment) return;
         
-        // Find the original casing for the report title if needed, or just use the provided one
-        const displayCenterName = centerStats.find(c => c.name.toLowerCase() === centerName.toLowerCase())?.name || centerName;
+        // Use the standardized display name for the report title
+        const displayCenterName = getStandardizedCenterName(centerName);
 
         // Create headers and rows for CSV
         const headers = ['Question', 'Correct Answers', 'Incorrect Answers', 'Percentage Correct'];
         const csvRows = [headers];
         
-        // For each question, calculate stats for the specified center (case-insensitive)
+        // For each question, calculate stats for the specified center (using the normalized key)
         assessment.questions.forEach((question, index) => {
-            // Pass the potentially lowercase centerName to calculateResponseStats
+            // Pass the normalized centerName to calculateResponseStats
             const stats = calculateResponseStats(index, centerName); 
             const correctStat = stats.find(s => s.option === 'Correct') || { count: 0, percentage: 0 };
             const incorrectStat = stats.find(s => s.option === 'Incorrect') || { count: 0, percentage: 0 };
@@ -872,17 +884,16 @@ export default function AssessmentResponses() {
                         <h2 className="text-xl font-semibold text-slate-800 mb-6">Centers Performance Summary</h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {centerStats.map((center, index) => {
-                                // Function to capitalize the first letter for display
-                                const capitalize = (s) => s && s.charAt(0).toUpperCase() + s.slice(1);
-                                const displayCenterName = capitalize(center.nameKey === 'unspecified' ? 'Unspecified' : center.displayName); // Prefer original casing if not 'unspecified'
+                                // Use the pre-calculated standardized displayName
+                                const displayCenterName = center.displayName; 
 
                                 return (
                                     <div key={index} className="border border-gray-100 rounded-lg p-4 hover:shadow-md transition-shadow duration-200">
                                         <div className="flex items-center mb-3">
-                                            {/* Use nameKey for color consistency, displayCenterName for text */}
+                                            {/* Use nameKey for color, displayName for text */}
                                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(center.nameKey)}`}>
                                                 <BuildingOfficeIcon className="h-3 w-3 mr-1" />
-                                                {displayCenterName}
+                                                {displayCenterName} 
                                             </span>
                                             <span className="text-sm text-gray-600 ml-2">{center.count} {assessment.assessmentType === 'survey' ? 'responses' : 'participants'}</span>
                                         </div>
@@ -980,9 +991,9 @@ export default function AssessmentResponses() {
                                 >
                                     <option value="">All Centers</option>
                                     {availableCenters.map(center => (
-                                        // Display capitalized center name in dropdown, value is lowercase
+                                        // Display standardized center name, value is normalized (lowercase)
                                         <option key={center} value={center}>
-                                            {center.charAt(0).toUpperCase() + center.slice(1)}
+                                            {getStandardizedCenterName(center)}
                                         </option>
                                     ))}
                                 </select>
@@ -1103,26 +1114,28 @@ export default function AssessmentResponses() {
                                     </h4>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                         {centerStats.map((center, centerIdx) => {
-                                            const centerStats = calculateResponseStats(index, center.name);
-                                            const correctPercentage = centerStats.find(s => s.option === 'Correct')?.percentage || 0;
+                                            // Use nameKey for calculation consistency
+                                            const centerQuestionStats = calculateResponseStats(index, center.nameKey); 
+                                            const correctPercentage = centerQuestionStats.find(s => s.option === 'Correct')?.percentage || 0;
                                             return (
                                                 <div key={centerIdx} className="border border-gray-100 rounded-lg p-3">
                                                     <div className="flex items-center justify-between mb-2">
-                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(center.name)}`}>
-                                                            {center.name}
+                                                        {/* Use nameKey for color, displayName for text */}
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(center.nameKey)}`}>
+                                                            {center.displayName} 
                                                         </span>
-                                                        <span className={`text-sm font-semibold ${correctPercentage >= 70 ? 'text-green-600' : 'text-red-600'}`}>
+                                                        <span className={`text-sm font-semibold ${correctPercentage >= (assessment.passingScore || 70) ? 'text-green-600' : 'text-red-600'}`}>
                                                             {correctPercentage}% correct
                                                         </span>
                                                     </div>
                                                     <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                                                         <div 
-                                                            className={`h-full rounded-full ${correctPercentage >= 70 ? 'bg-green-500' : 'bg-red-500'}`}
+                                                            className={`h-full rounded-full ${correctPercentage >= (assessment.passingScore || 70) ? 'bg-green-500' : 'bg-red-500'}`}
                                                             style={{ width: `${correctPercentage}%` }}
                                                         />
                                                     </div>
                                                     <div className="text-xs text-gray-500 mt-1">
-                                                        {centerStats.find(s => s.option === 'Correct')?.count || 0} of {center.count} participants answered correctly
+                                                        {centerQuestionStats.find(s => s.option === 'Correct')?.count || 0} of {center.count} participants answered correctly
                                                     </div>
                                                 </div>
                                             );
@@ -1141,8 +1154,8 @@ export default function AssessmentResponses() {
                                     </h4>
                                     <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
                                         {assessment.responses.map((response, respIndex) => {
-                                            // Filter out responses not matching the center filter if active
-                                            if (centerFilter && response.participantCentre !== centerFilter) {
+                                            // Filter out responses not matching the center filter (using normalized names)
+                                            if (centerFilter && normalizeCentreName(response.participantCentre) !== centerFilter) {
                                                 return null;
                                             }
                                             const comment = response.responses[index]?.comments;
@@ -1151,7 +1164,7 @@ export default function AssessmentResponses() {
                                                 <div key={respIndex} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
                                                     <p className="text-sm text-gray-700 italic">"{comment}"</p>
                                                     <p className="text-xs text-gray-500 mt-2 text-right">
-                                                        - {response.participantName} ({response.participantCentre || 'N/A'})
+                                                        - {response.participantName} ({getStandardizedCenterName(response.participantCentre) || 'N/A'})
                                                     </p>
                                                 </div>
                                             );
@@ -1178,9 +1191,9 @@ export default function AssessmentResponses() {
                                     >
                                         <option value="">All Centers</option>
                                         {availableCenters.map(center => (
-                                            // Display capitalized center name in dropdown, value is lowercase
+                                            // Display standardized center name, value is normalized (lowercase)
                                             <option key={center} value={center}>
-                                                {center.charAt(0).toUpperCase() + center.slice(1)}
+                                                {getStandardizedCenterName(center)}
                                             </option>
                                         ))}
                                     </select>
@@ -1261,9 +1274,9 @@ export default function AssessmentResponses() {
                                                     <div className="flex items-center mt-1">
                                                         <p className="text-sm text-gray-600 mr-3">{response.participantDepartment}</p>
                                                         {response.participantCentre && (
-                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(response.participantCentre)}`}>
+                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(normalizeCentreName(response.participantCentre))}`}>
                                                                 <BuildingOfficeIcon className="h-3 w-3 mr-1" />
-                                                                {response.participantCentre}
+                                                                {getStandardizedCenterName(response.participantCentre)}
                                                             </span>
                                                         )}
                                                     </div>
@@ -1346,9 +1359,9 @@ export default function AssessmentResponses() {
                                                     <div className="flex items-center mt-1">
                                                         <p className="text-sm text-gray-600 mr-3">{result.participant.department}</p>
                                                         {result.participant.centre && (
-                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(result.participant.centre)}`}>
+                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(normalizeCentreName(result.participant.centre))}`}>
                                                                 <BuildingOfficeIcon className="h-3 w-3 mr-1" />
-                                                                {result.participant.centre}
+                                                                {getStandardizedCenterName(result.participant.centre)}
                                                             </span>
                                                         )}
                                                     </div>
