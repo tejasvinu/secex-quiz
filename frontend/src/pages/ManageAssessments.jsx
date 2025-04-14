@@ -807,11 +807,13 @@ export default function ManageAssessments() {
                         </div>
                     ) : (
                         assessments.map((assessment) => (
-                            <div key={assessment._id} className="bg-white rounded-xl shadow-md border border-gray-100 overflow-visible transition-all duration-300 hover:shadow-lg hover:border-gray-200 transform hover:-translate-y-1">
+                            <div
+                                key={assessment._id}
+                                className={`bg-white rounded-xl shadow-md border border-gray-100 overflow-visible transition-all duration-300 hover:shadow-lg hover:border-gray-200 transform hover:-translate-y-1 ${openMenuId === assessment._id ? 'relative z-10' : ''}`}>
                                 <div className="p-6">
                                     <div className="flex justify-between items-start mb-4">
                                         <h3 className="text-lg font-semibold text-slate-800 flex-1 pr-4">{assessment.title}</h3>
-                                        <div className="relative assessment-menu">
+                                        <div className="relative assessment-menu"> {/* Keep relative positioning here */}
                                             <button
                                                 onClick={() => setOpenMenuId(openMenuId === assessment._id ? null : assessment._id)}
                                                 className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
@@ -823,7 +825,7 @@ export default function ManageAssessments() {
                                             </button>
                                             {openMenuId === assessment._id && (
                                                 <div
-                                                    className="absolute right-0 mt-2 w-56 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50"
+                                                    className="absolute right-0 mt-2 w-56 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50" // This z-index is now relative to the card's z-10
                                                     style={{
                                                         transform: 'translateY(0)',
                                                         maxHeight: '90vh',
