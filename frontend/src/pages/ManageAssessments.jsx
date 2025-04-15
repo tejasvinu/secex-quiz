@@ -465,7 +465,7 @@ export default function ManageAssessments() {
                                         <h3 className="text-lg font-medium text-slate-800">Questions</h3>
                                         <button
                                             type="button"
-                                            onClick={addQuestion}
+                                            onClick={() => addQuestion(false)} // Explicitly pass false
                                             className="bg-gray-100 text-gray-700 px-3 py-1 rounded-md hover:bg-gray-200"
                                         >
                                             Add Question
