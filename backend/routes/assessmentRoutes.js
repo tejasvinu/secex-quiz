@@ -217,7 +217,7 @@ router.patch('/:id/toggle-status', protect, async (req, res) => {
 // Update an existing assessment
 router.put('/:id', protect, async (req, res) => {
     try {
-        const { title, description } = req.body;
+        const { title, description, questions, timeLimit, passingScore } = req.body;
 
         // Find the assessment by ID and ensure it belongs to the logged-in user
         const assessment = await Assessment.findOne({ _id: req.params.id, creator: req.user._id });
@@ -226,9 +226,12 @@ router.put('/:id', protect, async (req, res) => {
             return res.status(404).json({ message: 'Assessment not found' });
         }
 
-        // Only update title and description
+        // Update all fields if provided
         if (title) assessment.title = title;
         if (description) assessment.description = description;
+        if (questions) assessment.questions = questions;
+        if (timeLimit !== undefined) assessment.timeLimit = timeLimit;
+        if (passingScore !== undefined) assessment.passingScore = passingScore;
 
         await assessment.save();
 

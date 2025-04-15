@@ -126,8 +126,9 @@ export default function ManageAssessments() {
 
     const handleCreateAssessment = async (e) => {
         e.preventDefault();
-        if (!newAssessment.questions.some(q => q.question.trim())) {
-            toast.error('Please add at least one question with content');
+        // Ensure ALL questions have content
+        if (newAssessment.questions.some(q => !q.question.trim())) {
+            toast.error('Please ensure all questions have content before creating.');
             return;
         }
 
