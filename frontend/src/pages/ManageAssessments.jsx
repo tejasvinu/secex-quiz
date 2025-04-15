@@ -66,66 +66,97 @@ export default function ManageAssessments() {
         } finally {
             setLoading(false);
         }
-    };    const addQuestion = (isEditing = false) => {
+    };    
+    
+    const addQuestion = (isEditing = false) => {
+        console.log(`addQuestion called, isEditing: ${isEditing}`);
         const stateSetter = isEditing ? setSelectedAssessment : setNewAssessment;
-        const currentAssessment = isEditing ? selectedAssessment : newAssessment;
-        
-        if (!currentAssessment) return;
-        
-        stateSetter(prev => ({
-            ...prev,
-            questions: [
-                ...(prev.questions || []),
-                {
-                    question: '',
-                    questionType: prev.assessmentType,
-                    options: prev.assessmentType === 'survey'
-                        ? ['No', 'Little', 'Somewhat', 'Mostly', 'Completely']
-                        : ['', '', '', ''],
-                    allowComments: prev.assessmentType === 'survey',
-                    correctOption: null,
-                    points: prev.assessmentType === 'quiz' ? 1 : 0
-                }
-            ]
-        }));
+        const assessmentType = isEditing ? selectedAssessment?.assessmentType : newAssessment.assessmentType;
+
+        if (!assessmentType) {
+            console.error("Cannot add question: assessment type is missing.");
+            return;
+        }
+
+        stateSetter(prev => {
+            if (!prev) {
+                console.error("Cannot add question: previous state is null.");
+                return prev; // Should not happen if called correctly, but good safeguard
+            }
+            console.log("Current questions before adding:", prev.questions);
+            const newQuestion = {
+                question: '',
+                questionType: assessmentType, // Use determined assessment type
+                options: assessmentType === 'survey'
+                    ? ['No', 'Little', 'Somewhat', 'Mostly', 'Completely']
+                    : ['', '', '', ''],
+                allowComments: assessmentType === 'survey',
+                correctOption: null,
+                points: assessmentType === 'quiz' ? 1 : 0
+            };
+            const updatedQuestions = [...(prev.questions || []), newQuestion];
+            console.log("Updated questions after adding:", updatedQuestions);
+            return {
+                ...prev,
+                questions: updatedQuestions
+            };
+        });
     };
 
     const handleQuestionChange = (index, field, value, isEditing = false) => {
+        console.log(`handleQuestionChange called, index: ${index}, field: ${field}, value: ${value}, isEditing: ${isEditing}`);
         const stateSetter = isEditing ? setSelectedAssessment : setNewAssessment;
+        
         stateSetter(prev => {
-            const questions = [...prev.questions];
-            questions[index] = { ...questions[index], [field]: value };
+            if (!prev || !prev.questions || index >= prev.questions.length) {
+                 console.error("Cannot update question: invalid state or index.");
+                 return prev;
+            }
+
+            const updatedQuestions = [...prev.questions];
+            const updatedQuestion = { ...updatedQuestions[index], [field]: value };
 
             // Reset correctOption if options array changes and correctOption becomes invalid
             if (field === 'options' && Array.isArray(value)) {
-                if (questions[index].correctOption >= value.length) {
-                    questions[index].correctOption = null;
+                if (updatedQuestion.correctOption >= value.length) {
+                    updatedQuestion.correctOption = null;
                 }
             }
             // Ensure points are numbers
             if (field === 'points') {
-                questions[index].points = Number(value) || 0;
+                updatedQuestion.points = Number(value) || 0;
             }
 
-            return { ...prev, questions };
+            updatedQuestions[index] = updatedQuestion;
+            console.log("Updated questions in handleQuestionChange:", updatedQuestions);
+            return { ...prev, questions: updatedQuestions };
         });
     };
 
     const handleAssessmentTypeChange = (type) => {
-        setNewAssessment(prev => ({
-            ...prev,
-            assessmentType: type,
-            questions: prev.questions.map(q => ({
+        console.log(`handleAssessmentTypeChange called, type: ${type}`);
+        setNewAssessment(prev => {
+            console.log("Updating assessment type from:", prev.assessmentType, "to:", type);
+            const updatedQuestions = prev.questions.map(q => ({
                 ...q,
                 questionType: type,
                 options: type === 'survey'
                     ? ['No', 'Little', 'Somewhat', 'Mostly', 'Completely']
                     : ['', '', '', ''],
                 allowComments: type === 'survey',
-                correctOption: null,
-                points: type === 'quiz' ? 1 : 0
-            }))
-        }));
+                correctOption: null, // Reset correct option when type changes
+                points: type === 'quiz' ? 1 : 0 // Reset points based on type
+            }));
+            console.log("Questions after type change:", updatedQuestions);
+            return {
+                ...prev,
+                assessmentType: type,
+                // Reset quiz-specific fields if changing away from quiz
+                timeLimit: type === 'quiz' ? prev.timeLimit : null,
+                passingScore: type === 'quiz' ? prev.passingScore : null,
+                questions: updatedQuestions
+            };
+        });
     };
 
     const handleCreateAssessment = async (e) => {
@@ -465,7 +496,10 @@ export default function ManageAssessments() {
                                         <h3 className="text-lg font-medium text-slate-800">Questions</h3>
                                         <button
                                             type="button"
-                                            onClick={() => addQuestion(false)} // Explicitly pass false
+                                            onClick={() => {
+                                                console.log("Add Question button clicked (Create Form)");
+                                                addQuestion(false);
+                                            }}
                                             className="bg-gray-100 text-gray-700 px-3 py-1 rounded-md hover:bg-gray-200"
                                         >
                                             Add Question
@@ -477,7 +511,10 @@ export default function ManageAssessments() {
                                             {newAssessment.questions.length > 1 && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => removeQuestion(index, false)} // Pass false for create form
+                                                    onClick={() => {
+                                                        console.log(`Remove Question button clicked (Create Form), index: ${index}`);
+                                                        removeQuestion(index, false);
+                                                    }}
                                                     className="absolute top-2 right-2 p-1 bg-red-100 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                                                 >
                                                     <XMarkIcon className="h-4 w-4" />
@@ -675,7 +712,10 @@ export default function ManageAssessments() {
                                         <h3 className="text-lg font-medium text-slate-800">Questions</h3>
                                         <button
                                             type="button"
-                                            onClick={() => addQuestion(true)} // Pass true for edit form
+                                            onClick={() => {
+                                                console.log("Add Question button clicked (Edit Form)");
+                                                addQuestion(true);
+                                            }}
                                             className="bg-gray-100 text-gray-700 px-3 py-1 rounded-md hover:bg-gray-200"
                                         >
                                             Add Question
@@ -687,7 +727,10 @@ export default function ManageAssessments() {
                                             {selectedAssessment.questions.length > 1 && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => removeQuestion(index, true)} // Pass true for edit form
+                                                    onClick={() => {
+                                                         console.log(`Remove Question button clicked (Edit Form), index: ${index}`);
+                                                         removeQuestion(index, true);
+                                                    }}
                                                     className="absolute top-2 right-2 p-1 bg-red-100 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                                                 >
                                                     <XMarkIcon className="h-4 w-4" />
