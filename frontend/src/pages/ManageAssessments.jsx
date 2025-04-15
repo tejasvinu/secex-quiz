@@ -17,7 +17,8 @@ export default function ManageAssessments() {
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
     const [showDeleteQuestionConfirmation, setShowDeleteQuestionConfirmation] = useState(false);
     const [questionToDeleteIndex, setQuestionToDeleteIndex] = useState(null);
-    const [isEditingQuestion, setIsEditingQuestion] = useState(false); // Tracks if question deletion is for edit form    const [openMenuId, setOpenMenuId] = useState(null);    
+    const [isEditingQuestion, setIsEditingQuestion] = useState(false); // Tracks if question deletion is for edit form    
+    const [openMenuId, setOpenMenuId] = useState(null);
     const [newAssessment, setNewAssessment] = useState({
         title: '',
         description: '',
