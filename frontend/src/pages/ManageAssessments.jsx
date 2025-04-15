@@ -18,13 +18,19 @@ export default function ManageAssessments() {
     const [showDeleteQuestionConfirmation, setShowDeleteQuestionConfirmation] = useState(false);
     const [questionToDeleteIndex, setQuestionToDeleteIndex] = useState(null);
     const [isEditingQuestion, setIsEditingQuestion] = useState(false); // Tracks if question deletion is for edit form
-    const [openMenuId, setOpenMenuId] = useState(null);
-
-    const [newAssessment, setNewAssessment] = useState({
+    const [openMenuId, setOpenMenuId] = useState(null);    const [newAssessment, setNewAssessment] = useState({
         title: '',
         description: '',
         assessmentType: 'survey',
         timeLimit: null,
+        questions: [{
+            question: '',
+            questionType: 'survey',
+            options: ['No', 'Little', 'Somewhat', 'Mostly', 'Completely'],
+            allowComments: true,
+            correctOption: null,
+            points: 0
+        }],
         passingScore: null,
         questions: [{
             question: '',
@@ -67,23 +73,33 @@ export default function ManageAssessments() {
         } finally {
             setLoading(false);
         }
-    };
-
-    const addQuestion = (isEditing = false) => {
+    };    const addQuestion = (isEditing = false) => {
         const stateSetter = isEditing ? setSelectedAssessment : setNewAssessment;
-        stateSetter(prev => ({
-            ...prev,
-            questions: [...prev.questions, {
-                question: '',
-                questionType: prev.assessmentType,
-                options: prev.assessmentType === 'survey'
-                    ? ['No', 'Little', 'Somewhat', 'Mostly', 'Completely']
-                    : ['', '', '', ''],
-                allowComments: prev.assessmentType === 'survey',
-                correctOption: null,
-                points: prev.assessmentType === 'quiz' ? 1 : 0
-            }]
-        }));
+        if (!isEditing && !newAssessment?.questions) return; // Guard against undefined questions
+        if (isEditing && !selectedAssessment?.questions) return; // Guard against undefined questions
+        
+        stateSetter(prev => {
+            if (!prev?.questions) {
+                // Initialize questions array if it doesn't exist
+                prev = {
+                    ...prev,
+                    questions: []
+                };
+            }
+            return {
+                ...prev,
+                questions: [...prev.questions, {
+                    question: '',
+                    questionType: prev.assessmentType,
+                    options: prev.assessmentType === 'survey'
+                        ? ['No', 'Little', 'Somewhat', 'Mostly', 'Completely']
+                        : ['', '', '', ''],
+                    allowComments: prev.assessmentType === 'survey',
+                    correctOption: null,
+                    points: prev.assessmentType === 'quiz' ? 1 : 0
+                }]
+            };
+        });
     };
 
     const handleQuestionChange = (index, field, value, isEditing = false) => {
