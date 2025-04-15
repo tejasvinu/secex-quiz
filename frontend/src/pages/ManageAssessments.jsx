@@ -510,7 +510,7 @@ export default function ManageAssessments() {
                                                                 handleQuestionChange(index, 'options', newOptions, false);
                                                             }}
                                                             className="block w-full rounded-lg border border-gray-300 px-3 py-2"
-                                                            required
+                                                            readOnly={newAssessment.assessmentType === 'survey'} // Make survey options readonly
                                                         />
                                                         {newAssessment.assessmentType === 'quiz' && (
                                                             <div className="ml-2">
