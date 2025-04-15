@@ -503,9 +503,30 @@ router.delete('/:assessmentId/results/:resultId', protect, async (req, res) => {
 
         await assessment.save();
         res.json({ message: 'Result deleted successfully' });
-    } catch (error) {
-        console.error('Failed to delete result:', error);
+    } catch (error) {        console.error('Failed to delete result:', error);
         res.status(500).json({ message: 'Failed to delete result', error: error.message });
+    }
+});
+
+// Delete an entire assessment
+router.delete('/:id', protect, async (req, res) => {
+    try {
+        const assessment = await Assessment.findOne({ 
+            _id: req.params.id,
+            creator: req.user._id
+        });
+
+        if (!assessment) {
+            return res.status(404).json({ message: 'Assessment not found' });
+        }
+
+        // Delete the assessment
+        await Assessment.deleteOne({ _id: req.params.id });
+        
+        res.json({ message: 'Assessment deleted successfully' });
+    } catch (error) {
+        console.error('Failed to delete assessment:', error);
+        res.status(500).json({ message: 'Failed to delete assessment', error: error.message });
     }
 });
 
