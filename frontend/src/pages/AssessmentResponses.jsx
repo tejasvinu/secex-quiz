@@ -1063,41 +1063,39 @@ export default function AssessmentResponses() {
                                     <div className="border border-gray-100 rounded-lg p-4">
                                         <h4 className="text-sm font-semibold text-gray-700 mb-4">Response Distribution</h4>
                                         <div className="space-y-6">
-                                            {assessment.questions.slice(0, 3).map((question, qIndex) => (
-                                                <div key={qIndex} className="space-y-3">
-                                                    <div className="text-sm font-medium text-gray-700 truncate">
-                                                        Q{qIndex + 1}: {question.question}
+                                            {assessment.questions.slice(0, 3).map((question, qIndex) => {
+                                                // Calculate overall stats for this question (no center filter)
+                                                const overallStats = calculateResponseStats(qIndex);
+                                                const totalOverallResponses = overallStats.reduce((sum, stat) => sum + stat.count, 0);
+
+                                                return (
+                                                    <div key={qIndex} className="space-y-3">
+                                                        <div className="text-sm font-medium text-gray-700 truncate">
+                                                            Q{qIndex + 1}: {question.question}
+                                                        </div>
+                                                        <div className="flex h-2 rounded-full overflow-hidden">
+                                                            {question.options.map((option, oIndex) => {
+                                                                const stat = overallStats.find(s => s.option === option);
+                                                                const count = stat ? stat.count : 0;
+                                                                const widthPercentage = totalOverallResponses > 0 ? (count / totalOverallResponses) * 100 : 0;
+                                                                
+                                                                return (
+                                                                    <div
+                                                                        key={oIndex}
+                                                                        className={`${responseColors[option]}`}
+                                                                        style={{ width: `${widthPercentage}%` }}
+                                                                        title={`${option}: ${widthPercentage.toFixed(1)}% (${count})`} // Add tooltip
+                                                                    />
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <div className="flex justify-between text-xs text-gray-500">
+                                                            <span>No</span>
+                                                            <span>Completely</span>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex h-2 rounded-full overflow-hidden">
-                                                        {question.options.map((option, oIndex) => {
-                                                            const totalResponses = analyzeCenterPatterns.reduce(
-                                                                (sum, center) => sum + center.responseCount,
-                                                                0
-                                                            );
-                                                            const count = analyzeCenterPatterns.reduce(
-                                                                (sum, center) => {
-                                                                    const stats = calculateResponseStats(qIndex, center.nameKey);
-                                                                    return sum + (stats.find(s => s.option === option)?.count || 0);
-                                                                },
-                                                                0
-                                                            );
-                                                            return (
-                                                                <div
-                                                                    key={oIndex}
-                                                                    className={`${responseColors[option]}`}
-                                                                    style={{
-                                                                        width: `${(count / totalResponses) * 100}%`
-                                                                    }}
-                                                                />
-                                                            );
-                                                        })}
-                                                    </div>
-                                                    <div className="flex justify-between text-xs text-gray-500">
-                                                        <span>No</span>
-                                                        <span>Completely</span>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 </div>
@@ -1208,130 +1206,145 @@ export default function AssessmentResponses() {
                         </div>
                     )}
                     
-                    {assessment.questions.map((question, index) => (
-                        <div key={index} className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
-                            <div className="flex justify-between items-start mb-5">
-                                <h3 className="text-lg font-semibold text-slate-800">
-                                    {index + 1}. {question.question}
-                                </h3>
-                                {assessment.assessmentType === 'survey' && (
-                                    <div className="flex flex-col items-end">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-sm text-gray-600">Average Rating:</span>
-                                            <span className="font-semibold text-blue-600">
-                                                {calculateLikertScore(calculateResponseStats(index))}
-                                            </span>
+                    {assessment.questions.map((question, index) => {
+                        // Calculate stats respecting the center filter *once* for this question
+                        const filteredStats = calculateResponseStats(index, centerFilter);
+                        const averageLikertScore = calculateLikertScore(filteredStats);
+                        const totalResponsesForQuestion = filteredStats.reduce((sum, stat) => sum + stat.count, 0);
+
+                        return (
+                            <div key={index} className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+                                <div className="flex justify-between items-start mb-5">
+                                    <h3 className="text-lg font-semibold text-slate-800">
+                                        {index + 1}. {question.question}
+                                    </h3>
+                                    {assessment.assessmentType === 'survey' && (
+                                        <div className="flex flex-col items-end">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-sm text-gray-600">Average Rating:</span>
+                                                <span className="font-semibold text-blue-600">
+                                                    {/* Use pre-calculated averageLikertScore */}
+                                                    {averageLikertScore}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-gray-500">Overall Sentiment:</span>
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                    // Use pre-calculated averageLikertScore
+                                                    parseFloat(averageLikertScore) >= 4.5 ? 'bg-green-100 text-green-800' :
+                                                    parseFloat(averageLikertScore) >= 3.5 ? 'bg-emerald-100 text-emerald-800' :
+                                                    parseFloat(averageLikertScore) >= 2.5 ? 'bg-blue-100 text-blue-800' :
+                                                    parseFloat(averageLikertScore) >= 1.5 ? 'bg-orange-100 text-orange-800' :
+                                                    'bg-red-100 text-red-800'
+                                                }`}>
+                                                    {/* Use pre-calculated averageLikertScore */}
+                                                    {parseFloat(averageLikertScore) >= 4.5 ? 'Very Positive' :
+                                                     parseFloat(averageLikertScore) >= 3.5 ? 'Positive' :
+                                                     parseFloat(averageLikertScore) >= 2.5 ? 'Neutral' :
+                                                     parseFloat(averageLikertScore) >= 1.5 ? 'Negative' :
+                                                     'Very Negative'}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs text-gray-500">Overall Sentiment:</span>                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 4.5 ? 'bg-green-100 text-green-800' :
-                                                parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 3.5 ? 'bg-emerald-100 text-emerald-800' :
-                                                parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 2.5 ? 'bg-blue-100 text-blue-800' :
-                                                parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 1.5 ? 'bg-orange-100 text-orange-800' :
-                                                'bg-red-100 text-red-800'
-                                            }`}>
-                                                {parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 4.5 ? 'Very Positive' :
-                                                 parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 3.5 ? 'Positive' :
-                                                 parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 2.5 ? 'Neutral' :
-                                                 parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 1.5 ? 'Negative' :
-                                                 'Very Negative'}
-                                            </span>
+                                    )}
+                                </div>
+
+                                {assessment.assessmentType === 'survey' && (
+                                    <div className="space-y-6">
+                                        <div>
+                                            <h4 className="text-sm font-semibold text-slate-700 mb-3">Response Distribution</h4>
+                                            <div className="space-y-3">
+                                                {/* Use pre-calculated filteredStats */}
+                                                {filteredStats.map((stat, statIndex) => (
+                                                    <div key={statIndex} className="flex items-center gap-4">
+                                                        <div className="w-24 text-sm font-medium text-gray-700 text-right">{stat.option}</div>
+                                                        <div className="flex-1">
+                                                            <div className="h-5 bg-gray-200 rounded-full overflow-hidden relative">
+                                                                <div
+                                                                    className={`h-full rounded-full transition-all duration-500 ease-out ${responseColors[stat.option]}`}
+                                                                    style={{ width: `${stat.percentage}%` }}
+                                                                />
+                                                                {stat.percentage > 10 && (
+                                                                    <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white mix-blend-luminosity">
+                                                                        {stat.percentage}% ({stat.count})
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Additional Metrics for Survey Questions */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                                            <div>
+                                                <h4 className="text-sm font-semibold text-slate-700 mb-3">Response Summary</h4>                                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                                                    <div className="flex justify-between">
+                                                        <span className="text-sm text-gray-600">Total Responses:</span>
+                                                        <span className="text-sm font-medium">{
+                                                            // Use pre-calculated totalResponsesForQuestion
+                                                            totalResponsesForQuestion
+                                                        }</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-sm text-gray-600">Most Common:</span>
+                                                        <span className="text-sm font-medium">{
+                                                            // Use pre-calculated filteredStats
+                                                            filteredStats.length > 0
+                                                                ? filteredStats.reduce((prev, curr) => prev.count > curr.count ? prev : curr).option
+                                                                : 'None'
+                                                        }</span>
+                                                    </div>
+                                                    {question.allowComments && (
+                                                        <div className="flex justify-between">
+                                                            <span className="text-sm text-gray-600">Comments:</span>
+                                                            <span className="text-sm font-medium">{
+                                                                assessment.responses.filter(r =>
+                                                                    (!centerFilter || normalizeCentreName(r.participantCentre) === centerFilter) &&
+                                                                    r.responses[index]?.comments
+                                                                ).length
+                                                            }</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <h4 className="text-sm font-semibold text-slate-700 mb-3">Sentiment Breakdown</h4>
+                                                <div className="bg-gray-50 rounded-lg p-4">
+                                                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-3">
+                                                        {(() => {
+                                                            // Use pre-calculated stats and total
+                                                            if (!filteredStats || filteredStats.length === 0) return null;
+                                                            if (totalResponsesForQuestion === 0) return null;
+
+                                                            // Map through the stats to render the segments
+                                                            return filteredStats.map((stat, statIndex) => (
+                                                                <div
+                                                                    key={statIndex}
+                                                                    className={`h-full float-left ${responseColors[stat.option]}`}
+                                                                    style={{ width: `${(stat.count / totalResponsesForQuestion) * 100}%` }}
+                                                                    title={`${stat.option}: ${((stat.count / totalResponsesForQuestion) * 100).toFixed(1)}% (${stat.count})`} // Add tooltip
+                                                                />
+                                                            ));
+                                                        })()}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 flex justify-between">
+                                                        <span className="text-red-600">Very Negative</span>
+                                                        <span className="text-orange-600">Negative</span>
+                                                        <span className="text-blue-600">Neutral</span>
+                                                        <span className="text-emerald-600">Positive</span>
+                                                        <span className="text-green-600">Very Positive</span>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
                             </div>
-
-                            {assessment.assessmentType === 'survey' && (
-                                <div className="space-y-6">
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-slate-700 mb-3">Response Distribution</h4>
-                                        <div className="space-y-3">
-                                            {calculateResponseStats(index, centerFilter).map((stat, statIndex) => (
-                                                <div key={statIndex} className="flex items-center gap-4">
-                                                    <div className="w-24 text-sm font-medium text-gray-700 text-right">{stat.option}</div>
-                                                    <div className="flex-1">
-                                                        <div className="h-5 bg-gray-200 rounded-full overflow-hidden relative">
-                                                            <div
-                                                                className={`h-full rounded-full transition-all duration-500 ease-out ${responseColors[stat.option]}`}
-                                                                style={{ width: `${stat.percentage}%` }}
-                                                            />
-                                                            {stat.percentage > 10 && (
-                                                                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white mix-blend-luminosity">
-                                                                    {stat.percentage}% ({stat.count})
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Additional Metrics for Survey Questions */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-                                        <div>
-                                            <h4 className="text-sm font-semibold text-slate-700 mb-3">Response Summary</h4>                                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                                                <div className="flex justify-between">
-                                                    <span className="text-sm text-gray-600">Total Responses:</span>
-                                                    <span className="text-sm font-medium">{
-                                                        calculateResponseStats(index, centerFilter)?.length > 0
-                                                            ? calculateResponseStats(index, centerFilter)
-                                                                .reduce((sum, stat) => sum + stat.count, 0)
-                                                            : 0
-                                                    }</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-sm text-gray-600">Most Common:</span>                                                    <span className="text-sm font-medium">{
-                                                        calculateResponseStats(index, centerFilter)?.length > 0
-                                                            ? calculateResponseStats(index, centerFilter)
-                                                                .reduce((prev, curr) => prev.count > curr.count ? prev : curr).option
-                                                            : 'None'
-                                                    }</span>
-                                                </div>
-                                                {question.allowComments && (
-                                                    <div className="flex justify-between">
-                                                        <span className="text-sm text-gray-600">Comments:</span>
-                                                        <span className="text-sm font-medium">{
-                                                            assessment.responses.filter(r => 
-                                                                (!centerFilter || normalizeCentreName(r.participantCentre) === centerFilter) &&
-                                                                r.responses[index]?.comments
-                                                            ).length
-                                                        }</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <h4 className="text-sm font-semibold text-slate-700 mb-3">Sentiment Breakdown</h4>
-                                            <div className="bg-gray-50 rounded-lg p-4">
-                                                <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-3">
-                                                    {calculateResponseStats(index, centerFilter).map((stat, statIndex) => {                                                const stats = calculateResponseStats(index, centerFilter);
-                                                        if (!stats || stats.length === 0) return null;
-                                                        const totalResponses = stats.reduce((sum, s) => sum + s.count, 0);
-                                                        if (totalResponses === 0) return null;
-                                                        return (
-                                                            <div
-                                                                key={statIndex}
-                                                                className={`h-full float-left ${responseColors[stat.option]}`}
-                                                                style={{ width: `${(stat.count / totalResponses) * 100}%` }}
-                                                            />
-                                                        );
-                                                    })}
-                                                </div>                                                <div className="text-xs text-gray-500 flex justify-between">
-                                                    <span className="text-red-600">Very Negative</span>
-                                                    <span className="text-orange-600">Negative</span>
-                                                    <span className="text-blue-600">Neutral</span>
-                                                    <span className="text-emerald-600">Positive</span>
-                                                    <span className="text-green-600">Very Positive</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                        )
+                    })}
 
                 </div>
 
