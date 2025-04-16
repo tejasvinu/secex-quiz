@@ -1317,9 +1317,8 @@ export default function AssessmentResponses() {
                                                     <div key={answerIndex} className="bg-gray-50 p-4 rounded-md border border-gray-100">
                                                         <p className="text-sm font-medium text-slate-700 mb-1">
                                                             {assessment.questions[answerIndex].question}
-                                                        </p>
-                                                        <p className="text-sm text-blue-700 font-medium">
-                                                            Response: <span className="font-semibold">{answer.response}</span>
+                                                        </p>                                                        <p className="text-sm text-blue-700 font-medium">
+                                                            Response: <span className="font-semibold">{answer?.response || 'No response'}</span>
                                                         </p>
                                                         {answer.comments && (
                                                             <p className="text-sm text-gray-600 mt-1 italic">
