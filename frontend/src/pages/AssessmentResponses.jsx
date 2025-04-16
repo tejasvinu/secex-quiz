@@ -1319,8 +1319,7 @@ export default function AssessmentResponses() {
                                                             {assessment.questions[answerIndex].question}
                                                         </p>                                                        <p className="text-sm text-blue-700 font-medium">
                                                             Response: <span className="font-semibold">{answer?.response || 'No response'}</span>
-                                                        </p>
-                                                        {answer.comments && (
+                                                        </p>                                                        {answer?.comments && (
                                                             <p className="text-sm text-gray-600 mt-1 italic">
                                                                 Comment: "{answer.comments}"
                                                             </p>
