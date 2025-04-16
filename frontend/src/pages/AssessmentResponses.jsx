@@ -1271,20 +1271,22 @@ export default function AssessmentResponses() {
                                     {/* Additional Metrics for Survey Questions */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
                                         <div>
-                                            <h4 className="text-sm font-semibold text-slate-700 mb-3">Response Summary</h4>
-                                            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                                            <h4 className="text-sm font-semibold text-slate-700 mb-3">Response Summary</h4>                                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                                                 <div className="flex justify-between">
                                                     <span className="text-sm text-gray-600">Total Responses:</span>
                                                     <span className="text-sm font-medium">{
-                                                        calculateResponseStats(index, centerFilter)
-                                                            .reduce((sum, stat) => sum + stat.count, 0)
+                                                        calculateResponseStats(index, centerFilter)?.length > 0
+                                                            ? calculateResponseStats(index, centerFilter)
+                                                                .reduce((sum, stat) => sum + stat.count, 0)
+                                                            : 0
                                                     }</span>
                                                 </div>
                                                 <div className="flex justify-between">
-                                                    <span className="text-sm text-gray-600">Most Common:</span>
-                                                    <span className="text-sm font-medium">{
-                                                        calculateResponseStats(index, centerFilter)
-                                                            .reduce((prev, curr) => prev.count > curr.count ? prev : curr).option
+                                                    <span className="text-sm text-gray-600">Most Common:</span>                                                    <span className="text-sm font-medium">{
+                                                        calculateResponseStats(index, centerFilter)?.length > 0
+                                                            ? calculateResponseStats(index, centerFilter)
+                                                                .reduce((prev, curr) => prev.count > curr.count ? prev : curr).option
+                                                            : 'None'
                                                     }</span>
                                                 </div>
                                                 {question.allowComments && (
@@ -1305,9 +1307,10 @@ export default function AssessmentResponses() {
                                             <h4 className="text-sm font-semibold text-slate-700 mb-3">Sentiment Breakdown</h4>
                                             <div className="bg-gray-50 rounded-lg p-4">
                                                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-3">
-                                                    {calculateResponseStats(index, centerFilter).map((stat, statIndex) => {
-                                                        const totalResponses = calculateResponseStats(index, centerFilter)
-                                                            .reduce((sum, s) => sum + s.count, 0);
+                                                    {calculateResponseStats(index, centerFilter).map((stat, statIndex) => {                                                const stats = calculateResponseStats(index, centerFilter);
+                                                        if (!stats || stats.length === 0) return null;
+                                                        const totalResponses = stats.reduce((sum, s) => sum + s.count, 0);
+                                                        if (totalResponses === 0) return null;
                                                         return (
                                                             <div
                                                                 key={statIndex}
