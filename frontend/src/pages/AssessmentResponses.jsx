@@ -292,24 +292,20 @@ export default function AssessmentResponses() {
         if (!assessment.results?.length) return 0;
         const totalScore = assessment.results.reduce((sum, result) => sum + result.totalScore, 0);
         return Math.round(totalScore / assessment.results.length);
-    };
-
-    const responseColors = {
-        'No': 'bg-red-500',
-        'Little': 'bg-orange-500',
-        'Somewhat': 'bg-yellow-500',
-        'Mostly': 'bg-lime-500',
-        'Completely': 'bg-green-500',
-        'Correct': 'bg-green-500',
-        'Incorrect': 'bg-red-500'
-    };
-
-    const sentimentLabels = {
-        'No': 'Strongly Negative',
-        'Little': 'Negative',
-        'Somewhat': 'Neutral',
-        'Mostly': 'Positive',
-        'Completely': 'Strongly Positive'
+    };    const responseColors = {
+        'No': 'bg-red-400 bg-opacity-90',
+        'Little': 'bg-orange-400 bg-opacity-90',
+        'Somewhat': 'bg-yellow-400 bg-opacity-90',
+        'Mostly': 'bg-emerald-400 bg-opacity-90',
+        'Completely': 'bg-green-400 bg-opacity-90',
+        'Correct': 'bg-green-400 bg-opacity-90',
+        'Incorrect': 'bg-red-400 bg-opacity-90'
+    };    const sentimentLabels = {
+        'No': 'Very Negative (1)',
+        'Little': 'Negative (2)',
+        'Somewhat': 'Neutral (3)',
+        'Mostly': 'Positive (4)',
+        'Completely': 'Very Positive (5)'
     };
 
     // Calculate weighted average score for Likert scale responses
@@ -1227,15 +1223,18 @@ export default function AssessmentResponses() {
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-xs text-gray-500">Overall Sentiment:</span>
-                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 4 ? 'bg-green-100 text-green-800' :
-                                                parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 3 ? 'bg-blue-100 text-blue-800' :
+                                            <span className="text-xs text-gray-500">Overall Sentiment:</span>                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 4.5 ? 'bg-green-100 text-green-800' :
+                                                parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 3.5 ? 'bg-emerald-100 text-emerald-800' :
+                                                parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 2.5 ? 'bg-blue-100 text-blue-800' :
+                                                parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 1.5 ? 'bg-orange-100 text-orange-800' :
                                                 'bg-red-100 text-red-800'
                                             }`}>
-                                                {parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 4 ? 'Positive' :
-                                                 parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 3 ? 'Neutral' :
-                                                 'Negative'}
+                                                {parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 4.5 ? 'Very Positive' :
+                                                 parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 3.5 ? 'Positive' :
+                                                 parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 2.5 ? 'Neutral' :
+                                                 parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 1.5 ? 'Negative' :
+                                                 'Very Negative'}
                                             </span>
                                         </div>
                                     </div>
@@ -1319,11 +1318,12 @@ export default function AssessmentResponses() {
                                                             />
                                                         );
                                                     })}
-                                                </div>
-                                                <div className="text-xs text-gray-500 flex justify-between">
-                                                    <span>Negative</span>
-                                                    <span>Neutral</span>
-                                                    <span>Positive</span>
+                                                </div>                                                <div className="text-xs text-gray-500 flex justify-between">
+                                                    <span className="text-red-600">Very Negative</span>
+                                                    <span className="text-orange-600">Negative</span>
+                                                    <span className="text-blue-600">Neutral</span>
+                                                    <span className="text-emerald-600">Positive</span>
+                                                    <span className="text-green-600">Very Positive</span>
                                                 </div>
                                             </div>
                                         </div>
