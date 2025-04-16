@@ -403,12 +403,33 @@ export default function AssessmentResponses() {
 
     // Function to handle printing the report
     const handlePrintReport = () => {
+        // Add check to ensure assessment is loaded
+        if (!assessment) {
+            console.error("Cannot print report: Assessment data not loaded yet.");
+            toast.error("Report data is not ready yet. Please wait.");
+            return;
+        }
         // Add a title dynamically for printing
         const originalTitle = document.title;
         document.title = `${assessment.title} - Responses Report${centerFilter ? ` (${getStandardizedCenterName(centerFilter)})` : ''}`;
         window.print();
         document.title = originalTitle; // Restore original title
     };
+
+    if (loading) {
+        return <LoadingSpinner />;
+    }
+
+    if (!assessment) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <h2 className="text-lg font-semibold text-gray-800">Assessment not found</h2>
+                    <p className="text-gray-600">The assessment you are looking for does not exist.</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 print:bg-white">
@@ -526,7 +547,7 @@ export default function AssessmentResponses() {
             <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
                 {/* Page Title */}
                 <h1 className="text-3xl font-bold text-slate-900 mb-8 print:hidden">
-                    {assessment.title} - Responses
+                    {assessment.title} - Responses 
                 </h1>
                 {/* Hidden Title for Printing */}
                 <h1 className="hidden print-title">
