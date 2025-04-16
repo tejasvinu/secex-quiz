@@ -304,6 +304,108 @@ export default function AssessmentResponses() {
         'Incorrect': 'bg-red-500'
     };
 
+    const sentimentLabels = {
+        'No': 'Strongly Negative',
+        'Little': 'Negative',
+        'Somewhat': 'Neutral',
+        'Mostly': 'Positive',
+        'Completely': 'Strongly Positive'
+    };
+
+    // Calculate weighted average score for Likert scale responses
+    const calculateLikertScore = (stats) => {
+        const weights = {
+            'No': 1,
+            'Little': 2,
+            'Somewhat': 3,
+            'Mostly': 4,
+            'Completely': 5
+        };
+        
+        let totalWeightedScore = 0;
+        let totalResponses = 0;
+        
+        stats.forEach(stat => {
+            if (weights[stat.option]) {
+                totalWeightedScore += weights[stat.option] * stat.count;
+                totalResponses += stat.count;
+            }
+        });
+        
+        return totalResponses ? (totalWeightedScore / totalResponses).toFixed(2) : 0;
+    };
+
+    // Calculate overall survey engagement metrics
+    const calculateSurveyMetrics = useMemo(() => {
+        if (!assessment || assessment.assessmentType !== 'survey') return null;
+
+        const metrics = {
+            totalResponses: assessment.responses.length,
+            averageCompletionRate: 0,
+            commentRate: 0,
+            averageLikertScore: 0,
+            questionScores: []
+        };
+
+        if (metrics.totalResponses === 0) return metrics;
+
+        // Calculate completion and comment rates
+        let totalQuestionResponses = 0;
+        let totalPossibleResponses = metrics.totalResponses * assessment.questions.length;
+        let totalComments = 0;
+        let totalPossibleComments = 0;
+
+        assessment.questions.forEach((question, index) => {
+            const stats = calculateResponseStats(index);
+            const questionResponses = stats.reduce((sum, stat) => sum + stat.count, 0);
+            totalQuestionResponses += questionResponses;
+            
+            const likertScore = calculateLikertScore(stats);
+            metrics.questionScores.push({
+                question: question.question,
+                likertScore: parseFloat(likertScore),
+                responseRate: (questionResponses / metrics.totalResponses) * 100
+            });
+
+            if (question.allowComments) {
+                totalPossibleComments += metrics.totalResponses;
+                totalComments += assessment.responses.filter(r => r.responses[index]?.comments).length;
+            }
+        });
+
+        metrics.averageCompletionRate = (totalQuestionResponses / totalPossibleResponses) * 100;
+        metrics.commentRate = totalPossibleComments ? (totalComments / totalPossibleComments) * 100 : 0;
+        metrics.averageLikertScore = metrics.questionScores.reduce((sum, q) => sum + q.likertScore, 0) / assessment.questions.length;
+
+        return metrics;
+    }, [assessment]);
+
+    // Analysis of response patterns by center
+    const analyzeCenterPatterns = useMemo(() => {
+        if (!assessment || assessment.assessmentType !== 'survey' || !centerStats.length) return [];
+
+        return centerStats.map(center => {
+            const centerMetrics = {
+                centerName: center.displayName,
+                responseCount: center.count,
+                averageLikertScore: 0,
+                questionScores: []
+            };
+
+            assessment.questions.forEach((question, index) => {
+                const stats = calculateResponseStats(index, center.nameKey);
+                const likertScore = calculateLikertScore(stats);
+                centerMetrics.questionScores.push({
+                    question: question.question,
+                    likertScore: parseFloat(likertScore)
+                });
+            });
+
+            centerMetrics.averageLikertScore = centerMetrics.questionScores.reduce((sum, q) => sum + q.likertScore, 0) / assessment.questions.length;
+            return centerMetrics;
+        });
+    }, [assessment, centerStats]);
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50">
@@ -872,147 +974,153 @@ export default function AssessmentResponses() {
                     <AnalyticsSection assessmentId={id} />
                 </div>
 
-                <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 mb-10">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <h2 className="text-xl font-semibold text-slate-800 mb-4">Response Summary</h2>
-                            <div className="flex items-center text-sm text-gray-600 space-x-6">
-                                <span className="flex items-center">
-                                    <UserCircleIcon className="h-5 w-5 mr-1.5 text-gray-400" />
-                                    {assessment.assessmentType === 'survey' 
-                                        ? `${assessment.responses.length} total responses`
-                                        : `${assessment.results.length} total submissions`
-                                    }
-                                </span>
-                                {assessment.assessmentType !== 'survey' && (
-                                    <span className="flex items-center">
-                                        <CheckCircleIcon className="h-5 w-5 mr-1.5 text-green-500" />
-                                        Average Score: {calculateAvgScore()}%
-                                    </span>
-                                )}
+                {assessment.assessmentType === 'survey' && calculateSurveyMetrics && (
+                    <div className="mb-10">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                            <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+                                <h3 className="text-lg font-semibold text-slate-800 mb-4">Response Overview</h3>
+                                <div className="text-3xl font-bold text-blue-600 mb-2">
+                                    {calculateSurveyMetrics.totalResponses}
+                                </div>
+                                <div className="text-sm text-gray-600">Total Responses</div>
+                                <div className="mt-4 flex items-center">
+                                    <div className="text-sm font-medium text-gray-600">Completion Rate</div>
+                                    <div className="ml-auto text-sm font-semibold text-blue-600">
+                                        {calculateSurveyMetrics.averageCompletionRate.toFixed(1)}%
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <button
-                            onClick={downloadSubmissions}
-                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                        >
-                            <ArrowDownTrayIcon className="h-5 w-5 text-gray-500" />
-                            Download All Responses
-                        </button>
-                    </div>
-                </div>
 
-                {/* Centers Performance Summary */}
-                {centerStats.length > 1 && (
-                    <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 mb-10">
-                        <h2 className="text-xl font-semibold text-slate-800 mb-6">Centers Performance Summary</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {centerStats.map((center, index) => {
-                                // Use the pre-calculated standardized displayName
-                                const displayCenterName = center.displayName; 
+                            <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+                                <h3 className="text-lg font-semibold text-slate-800 mb-4">Average Sentiment</h3>
+                                <div className="text-3xl font-bold text-green-600 mb-2">
+                                    {calculateSurveyMetrics.averageLikertScore.toFixed(2)}
+                                </div>
+                                <div className="text-sm text-gray-600">Likert Scale (1-5)</div>
+                                <div className="mt-4 flex items-center">
+                                    <div className="text-sm font-medium text-gray-600">Comment Rate</div>
+                                    <div className="ml-auto text-sm font-semibold text-green-600">
+                                        {calculateSurveyMetrics.commentRate.toFixed(1)}%
+                                    </div>
+                                </div>
+                            </div>
 
-                                return (
-                                    <div key={index} className="border border-gray-100 rounded-lg p-4 hover:shadow-md transition-shadow duration-200">
-                                        <div className="flex items-center mb-3">
-                                            {/* Use nameKey for color, displayName for text */}
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(center.nameKey)}`}>
-                                                <BuildingOfficeIcon className="h-3 w-3 mr-1" />
-                                                {displayCenterName} 
-                                            </span>
-                                            <span className="text-sm text-gray-600 ml-2">{center.count} {assessment.assessmentType === 'survey' ? 'responses' : 'participants'}</span>
-                                        </div>
-                                        
-                                        {assessment.assessmentType === 'survey' ? (
-                                            // Survey-specific display: Just show count and actions
-                                            <div className="flex justify-between items-center mt-3">
-                                                <button 
-                                                    // Use nameKey (lowercase) for filtering consistency
-                                                    onClick={() => setCenterFilter(center.nameKey)} 
-                                                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                                                >
-                                                    View Responses
-                                                </button>
-                                                <button 
-                                                    // Use nameKey (lowercase) for report generation consistency
-                                                    onClick={() => downloadCenterReport(center.nameKey)} 
-                                                    className="text-sm text-gray-600 hover:text-gray-800 flex items-center"
-                                                >
-                                                    <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
-                                                    Export
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            // Quiz-specific display: Show scores and performance
-                                            <>
-                                                <div className="space-y-2">
-                                                    <div className="flex justify-between items-center text-sm">
-                                                        <span className="text-gray-600">Average Score</span>
-                                                        <span className="font-medium">{center.avgScore}%</span>
+                            <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 lg:col-span-2">
+                                <h3 className="text-lg font-semibold text-slate-800 mb-4">Question Response Rates</h3>
+                                <div className="space-y-3">
+                                    {calculateSurveyMetrics.questionScores
+                                        .sort((a, b) => b.responseRate - a.responseRate)
+                                        .slice(0, 3)
+                                        .map((score, index) => (
+                                            <div key={index} className="flex items-center gap-4">
+                                                <div className="flex-1">
+                                                    <div className="text-sm font-medium text-gray-700 truncate mb-1">
+                                                        Q{index + 1}: {score.question}
                                                     </div>
                                                     <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                        <div 
-                                                            className={`h-full rounded-full ${
-                                                                center.avgScore >= (assessment.passingScore || 70) 
-                                                                    ? 'bg-green-500' 
-                                                                    : 'bg-red-500'
-                                                            }`}
-                                                            style={{ width: `${center.avgScore}%` }}
+                                                        <div
+                                                            className="h-full bg-blue-500 rounded-full"
+                                                            style={{ width: `${score.responseRate}%` }}
                                                         />
                                                     </div>
-                                                    
-                                                    <div className="flex justify-between items-center text-sm mt-3">
-                                                        <span className="text-gray-600">Top Score</span>
-                                                        <span className="font-medium">{center.highestScore}%</span>
-                                                    </div>
-                                                    
-                                                    {center.participants.length > 0 && (
-                                                        <div className="mt-3 pt-3 border-t border-gray-100">
-                                                            <div className="text-xs text-gray-500 mb-1">Top Performers</div>
-                                                            <div className="max-h-24 overflow-y-auto">
-                                                                {center.participants
-                                                                    .sort((a, b) => b.score - a.score)
-                                                                    .slice(0, 3)
-                                                                    .map((participant, idx) => (
-                                                                        <div key={idx} className="flex justify-between text-sm py-1">
-                                                                            <span className="text-gray-700 truncate" style={{maxWidth: "70%"}}>{participant.name}</span>
-                                                                            <span className="font-medium">{participant.score}%</span>
-                                                                        </div>
-                                                                    ))
-                                                                }
-                                                            </div>
-                                                        </div>
-                                                    )}
                                                 </div>
-                                                <div className="flex justify-between items-center mt-3">
-                                                    <button 
-                                                        // Use nameKey (lowercase) for filtering consistency
-                                                        onClick={() => setCenterFilter(center.nameKey)} 
-                                                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                                                    >
-                                                        View Details
-                                                    </button>
-                                                    <button 
-                                                        // Use nameKey (lowercase) for report generation consistency
-                                                        onClick={() => downloadCenterReport(center.nameKey)} 
-                                                        className="text-sm text-gray-600 hover:text-gray-800 flex items-center"
-                                                    >
-                                                        <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
-                                                        Export
-                                                    </button>
+                                                <div className="text-sm font-semibold text-gray-700 min-w-[4rem] text-right">
+                                                    {score.responseRate.toFixed(1)}%
                                                 </div>
-                                            </>
-                                        )}
-                                        
-                                    </div>
-                                );
-                            })}
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
                         </div>
+
+                        {analyzeCenterPatterns.length > 1 && (
+                            <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+                                <h3 className="text-lg font-semibold text-slate-800 mb-6">Center Response Analysis</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="border border-gray-100 rounded-lg p-4">
+                                        <h4 className="text-sm font-semibold text-gray-700 mb-4">Average Engagement by Center</h4>
+                                        <div className="space-y-4">
+                                            {analyzeCenterPatterns
+                                                .sort((a, b) => b.averageLikertScore - a.averageLikertScore)
+                                                .map((center, index) => (
+                                                    <div key={index} className="space-y-2">
+                                                        <div className="flex justify-between text-sm">
+                                                            <span className="font-medium text-gray-600">{center.centerName}</span>
+                                                            <span className="font-semibold text-blue-600">
+                                                                {center.averageLikertScore.toFixed(2)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                            <div
+                                                                className="h-full bg-blue-500 rounded-full"
+                                                                style={{ width: `${(center.averageLikertScore / 5) * 100}%` }}
+                                                            />
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">
+                                                            {center.responseCount} responses
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="border border-gray-100 rounded-lg p-4">
+                                        <h4 className="text-sm font-semibold text-gray-700 mb-4">Response Distribution</h4>
+                                        <div className="space-y-6">
+                                            {assessment.questions.slice(0, 3).map((question, qIndex) => (
+                                                <div key={qIndex} className="space-y-3">
+                                                    <div className="text-sm font-medium text-gray-700 truncate">
+                                                        Q{qIndex + 1}: {question.question}
+                                                    </div>
+                                                    <div className="flex h-2 rounded-full overflow-hidden">
+                                                        {question.options.map((option, oIndex) => {
+                                                            const totalResponses = analyzeCenterPatterns.reduce(
+                                                                (sum, center) => sum + center.responseCount,
+                                                                0
+                                                            );
+                                                            const count = analyzeCenterPatterns.reduce(
+                                                                (sum, center) => {
+                                                                    const stats = calculateResponseStats(qIndex, center.nameKey);
+                                                                    return sum + (stats.find(s => s.option === option)?.count || 0);
+                                                                },
+                                                                0
+                                                            );
+                                                            return (
+                                                                <div
+                                                                    key={oIndex}
+                                                                    className={`${responseColors[option]}`}
+                                                                    style={{
+                                                                        width: `${(count / totalResponses) * 100}%`
+                                                                    }}
+                                                                />
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    <div className="flex justify-between text-xs text-gray-500">
+                                                        <span>No</span>
+                                                        <span>Completely</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
+                {/* Question Breakdown Section */}
                 <div className="space-y-8 mb-12">
                     <div className="flex justify-between items-center mb-6 border-b pb-3">
-                        <h2 className="text-2xl font-semibold text-slate-800">Question Breakdown</h2>
+                        <div>
+                            <h2 className="text-2xl font-semibold text-slate-800">Question Breakdown</h2>
+                            {assessment.assessmentType === 'survey' && (
+                                <p className="text-sm text-gray-600 mt-1">
+                                    Analysis of {assessment.questions.length} questions with Likert scale responses
+                                </p>
+                            )}
+                        </div>
                         
                         {availableCenters.length > 0 && (
                             <div className="relative">
@@ -1106,101 +1214,116 @@ export default function AssessmentResponses() {
                     
                     {assessment.questions.map((question, index) => (
                         <div key={index} className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
-                            <h3 className="text-lg font-semibold text-slate-800 mb-5">
-                                {index + 1}. {question.question}
-                                {assessment.assessmentType !== 'survey' && (
-                                    <span className="text-sm font-normal text-gray-500 ml-2">
-                                        ({question.points} points)
-                                    </span>
+                            <div className="flex justify-between items-start mb-5">
+                                <h3 className="text-lg font-semibold text-slate-800">
+                                    {index + 1}. {question.question}
+                                </h3>
+                                {assessment.assessmentType === 'survey' && (
+                                    <div className="flex flex-col items-end">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-sm text-gray-600">Average Rating:</span>
+                                            <span className="font-semibold text-blue-600">
+                                                {calculateLikertScore(calculateResponseStats(index))}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-gray-500">Overall Sentiment:</span>
+                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 4 ? 'bg-green-100 text-green-800' :
+                                                parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 3 ? 'bg-blue-100 text-blue-800' :
+                                                'bg-red-100 text-red-800'
+                                            }`}>
+                                                {parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 4 ? 'Positive' :
+                                                 parseFloat(calculateLikertScore(calculateResponseStats(index))) >= 3 ? 'Neutral' :
+                                                 'Negative'}
+                                            </span>
+                                        </div>
+                                    </div>
                                 )}
-                            </h3>
+                            </div>
 
-                            <div className="space-y-3">
-                                {calculateResponseStats(index, centerFilter).map((stat, statIndex) => (
-                                    <div key={statIndex} className="flex items-center gap-4">
-                                        <div className="w-24 text-sm font-medium text-gray-700 text-right">{stat.option}</div>
-                                        <div className="flex-1">
-                                            <div className="h-5 bg-gray-200 rounded-full overflow-hidden relative">
-                                                <div
-                                                    className={`h-full rounded-full transition-all duration-500 ease-out ${responseColors[stat.option] || 'bg-blue-600'}`}
-                                                    style={{ width: `${stat.percentage}%` }}
-                                                />
-                                                {stat.percentage > 10 && (
-                                                    <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white mix-blend-luminosity">
-                                                        {stat.percentage}% 
-                                                    </span>
+                            {assessment.assessmentType === 'survey' && (
+                                <div className="space-y-6">
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-slate-700 mb-3">Response Distribution</h4>
+                                        <div className="space-y-3">
+                                            {calculateResponseStats(index, centerFilter).map((stat, statIndex) => (
+                                                <div key={statIndex} className="flex items-center gap-4">
+                                                    <div className="w-24 text-sm font-medium text-gray-700 text-right">{stat.option}</div>
+                                                    <div className="flex-1">
+                                                        <div className="h-5 bg-gray-200 rounded-full overflow-hidden relative">
+                                                            <div
+                                                                className={`h-full rounded-full transition-all duration-500 ease-out ${responseColors[stat.option]}`}
+                                                                style={{ width: `${stat.percentage}%` }}
+                                                            />
+                                                            {stat.percentage > 10 && (
+                                                                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white mix-blend-luminosity">
+                                                                    {stat.percentage}% ({stat.count})
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Additional Metrics for Survey Questions */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                                        <div>
+                                            <h4 className="text-sm font-semibold text-slate-700 mb-3">Response Summary</h4>
+                                            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                                                <div className="flex justify-between">
+                                                    <span className="text-sm text-gray-600">Total Responses:</span>
+                                                    <span className="text-sm font-medium">{
+                                                        calculateResponseStats(index, centerFilter)
+                                                            .reduce((sum, stat) => sum + stat.count, 0)
+                                                    }</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-sm text-gray-600">Most Common:</span>
+                                                    <span className="text-sm font-medium">{
+                                                        calculateResponseStats(index, centerFilter)
+                                                            .reduce((prev, curr) => prev.count > curr.count ? prev : curr).option
+                                                    }</span>
+                                                </div>
+                                                {question.allowComments && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-sm text-gray-600">Comments:</span>
+                                                        <span className="text-sm font-medium">{
+                                                            assessment.responses.filter(r => 
+                                                                (!centerFilter || normalizeCentreName(r.participantCentre) === centerFilter) &&
+                                                                r.responses[index]?.comments
+                                                            ).length
+                                                        }</span>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="w-16 text-sm text-gray-600 text-right">{stat.count}</div>
-                                    </div>
-                                ))}
-                            </div>
-                            
-                            {/* Center Performance Comparison for Quiz Questions */}
-                            {assessment.assessmentType !== 'survey' && centerStats.length > 1 && (
-                                <div className="mt-6 pt-5 border-t border-gray-200">
-                                    <h4 className="text-base font-semibold text-slate-700 mb-4 flex items-center">
-                                        <BuildingOfficeIcon className="h-5 w-5 mr-2 text-gray-400"/>
-                                        Center Performance Comparison
-                                    </h4>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {centerStats.map((center, centerIdx) => {
-                                            // Use nameKey for calculation consistency
-                                            const centerQuestionStats = calculateResponseStats(index, center.nameKey); 
-                                            const correctPercentage = centerQuestionStats.find(s => s.option === 'Correct')?.percentage || 0;
-                                            return (
-                                                <div key={centerIdx} className="border border-gray-100 rounded-lg p-3">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        {/* Use nameKey for color, displayName for text */}
-                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCentreColor(center.nameKey)}`}>
-                                                            {center.displayName} 
-                                                        </span>
-                                                        <span className={`text-sm font-semibold ${correctPercentage >= (assessment.passingScore || 70) ? 'text-green-600' : 'text-red-600'}`}>
-                                                            {correctPercentage}% correct
-                                                        </span>
-                                                    </div>
-                                                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                        <div 
-                                                            className={`h-full rounded-full ${correctPercentage >= (assessment.passingScore || 70) ? 'bg-green-500' : 'bg-red-500'}`}
-                                                            style={{ width: `${correctPercentage}%` }}
-                                                        />
-                                                    </div>
-                                                    <div className="text-xs text-gray-500 mt-1">
-                                                        {centerQuestionStats.find(s => s.option === 'Correct')?.count || 0} of {center.count} participants answered correctly
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
 
-                            {/* Comments Section for Survey Questions */}
-                            {assessment.assessmentType === 'survey' && question.allowComments &&
-                             assessment.responses.some(r => r.responses[index]?.comments) && (
-                                <div className="mt-6 pt-5 border-t border-gray-200">
-                                    <h4 className="text-base font-semibold text-slate-700 mb-4 flex items-center">
-                                        <ChatBubbleLeftEllipsisIcon className="h-5 w-5 mr-2 text-gray-400"/>
-                                        Comments
-                                    </h4>
-                                    <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
-                                        {assessment.responses.map((response, respIndex) => {
-                                            // Filter out responses not matching the center filter (using normalized names)
-                                            if (centerFilter && normalizeCentreName(response.participantCentre) !== centerFilter) {
-                                                return null;
-                                            }
-                                            const comment = response.responses[index]?.comments;
-                                            if (!comment) return null;
-                                            return (
-                                                <div key={respIndex} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-                                                    <p className="text-sm text-gray-700 italic">"{comment}"</p>
-                                                    <p className="text-xs text-gray-500 mt-2 text-right">
-                                                        - {response.participantName} ({getStandardizedCenterName(response.participantCentre) || 'N/A'})
-                                                    </p>
+                                        <div>
+                                            <h4 className="text-sm font-semibold text-slate-700 mb-3">Sentiment Breakdown</h4>
+                                            <div className="bg-gray-50 rounded-lg p-4">
+                                                <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-3">
+                                                    {calculateResponseStats(index, centerFilter).map((stat, statIndex) => {
+                                                        const totalResponses = calculateResponseStats(index, centerFilter)
+                                                            .reduce((sum, s) => sum + s.count, 0);
+                                                        return (
+                                                            <div
+                                                                key={statIndex}
+                                                                className={`h-full float-left ${responseColors[stat.option]}`}
+                                                                style={{ width: `${(stat.count / totalResponses) * 100}%` }}
+                                                            />
+                                                        );
+                                                    })}
                                                 </div>
-                                            );
-                                        })}
+                                                <div className="text-xs text-gray-500 flex justify-between">
+                                                    <span>Negative</span>
+                                                    <span>Neutral</span>
+                                                    <span>Positive</span>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -1459,11 +1582,9 @@ export default function AssessmentResponses() {
                                                             </div>
                                                             <div className="ml-4">
                                                                 <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                                                                    answer.isCorrect 
-                                                                        ? 'bg-green-100 text-green-700' 
-                                                                        : 'bg-red-100 text-red-700'
+                                                                    answer.isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                                                 }`}>
-                                                                    {answer.points} pts
+                                                                    {answer.isCorrect ? 'Correct' : 'Incorrect'}
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -1476,18 +1597,7 @@ export default function AssessmentResponses() {
                             )}
                         </div>
                     ) : (
-                        <div className="text-center py-10 px-6 bg-white rounded-lg shadow-sm border border-gray-100">
-                            <svg className="mx-auto h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                            </svg>
-                            <h3 className="mt-2 text-sm font-semibold text-slate-800">No Responses Yet</h3>
-                            <p className="mt-1 text-sm text-gray-500">
-                                {assessment.assessmentType === 'survey' 
-                                    ? 'Responses will appear here once participants complete the survey.'
-                                    : 'Results will appear here once participants complete the quiz.'
-                                }
-                            </p>
-                        </div>
+                        <p className="text-center text-gray-500">No responses available for this assessment.</p>
                     )}
                 </div>
             </main>
