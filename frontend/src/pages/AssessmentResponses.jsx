@@ -420,29 +420,53 @@ export default function AssessmentResponses() {
         // Use the standardized display name for the report title
         const displayCenterName = getStandardizedCenterName(centerName);
 
-        // Create headers and rows for CSV
-        const headers = ['Question', 'Correct Answers', 'Incorrect Answers', 'Percentage Correct'];
-        const csvRows = [headers];
+        let headers = [];
+        const csvRows = [];
         
-        // For each question, calculate stats for the specified center (using the normalized key)
-        assessment.questions.forEach((question, index) => {
-            // Pass the normalized centerName to calculateResponseStats
-            const stats = calculateResponseStats(index, centerName); 
-            const correctStat = stats.find(s => s.option === 'Correct') || { count: 0, percentage: 0 };
-            const incorrectStat = stats.find(s => s.option === 'Incorrect') || { count: 0, percentage: 0 };
+        if (assessment.assessmentType === 'survey') {
+            headers = ['Question', ...assessment.questions[0].options, 'Total Responses']; // Assuming all questions have same options
+            csvRows.push(headers);
+
+            assessment.questions.forEach((question, index) => {
+                const stats = calculateResponseStats(index, centerName);
+                const row = [question.question];
+                let totalCount = 0;
+                
+                // Ensure stats match the order of options in the header
+                assessment.questions[0].options.forEach(option => {
+                    const stat = stats.find(s => s.option === option);
+                    const count = stat ? stat.count : 0;
+                    row.push(count);
+                    totalCount += count;
+                });
+                row.push(totalCount); // Add total responses for this question in this center
+                csvRows.push(row);
+            });
+
+        } else { // Existing logic for quiz
+            headers = ['Question', 'Correct Answers', 'Incorrect Answers', 'Percentage Correct'];
+            csvRows.push(headers);
             
-            csvRows.push([
-                question.question,
-                correctStat.count,
-                incorrectStat.count,
-                `${correctStat.percentage}%`
-            ]);
-        });
+            // For each question, calculate stats for the specified center (using the normalized key)
+            assessment.questions.forEach((question, index) => {
+                // Pass the normalized centerName to calculateResponseStats
+                const stats = calculateResponseStats(index, centerName); 
+                const correctStat = stats.find(s => s.option === 'Correct') || { count: 0, percentage: 0 };
+                const incorrectStat = stats.find(s => s.option === 'Incorrect') || { count: 0, percentage: 0 };
+                
+                csvRows.push([
+                    question.question,
+                    correctStat.count,
+                    incorrectStat.count,
+                    `${correctStat.percentage}%`
+                ]);
+            });
+        }
         
         // Convert to CSV
         const csvContent = csvRows
             .map(row => row.map(cell => `"${cell || ''}"`).join(','))
-            .join('\n');
+            .join('\\n');
         
         // Create and download file
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -898,52 +922,9 @@ export default function AssessmentResponses() {
                                             <span className="text-sm text-gray-600 ml-2">{center.count} {assessment.assessmentType === 'survey' ? 'responses' : 'participants'}</span>
                                         </div>
                                         
-                                        {assessment.assessmentType !== 'survey' && (
-                                            <div className="space-y-2">
-                                                <div className="flex justify-between items-center text-sm">
-                                                    <span className="text-gray-600">Average Score</span>
-                                                    <span className="font-medium">{center.avgScore}%</span>
-                                                </div>
-                                                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                    <div 
-                                                        className={`h-full rounded-full ${
-                                                            center.avgScore >= (assessment.passingScore || 70) 
-                                                                ? 'bg-green-500' 
-                                                                : 'bg-red-500'
-                                                        }`}
-                                                        style={{ width: `${center.avgScore}%` }}
-                                                    />
-                                                </div>
-                                                
-                                                <div className="flex justify-between items-center text-sm mt-3">
-                                                    <span className="text-gray-600">Top Score</span>
-                                                    <span className="font-medium">{center.highestScore}%</span>
-                                                </div>
-                                                
-                                                {center.participants.length > 0 && (
-                                                    <div className="mt-3 pt-3 border-t border-gray-100">
-                                                        <div className="text-xs text-gray-500 mb-1">Top Performers</div>
-                                                        <div className="max-h-24 overflow-y-auto">
-                                                            {center.participants
-                                                                .sort((a, b) => b.score - a.score)
-                                                                .slice(0, 3)
-                                                                .map((participant, idx) => (
-                                                                    <div key={idx} className="flex justify-between text-sm py-1">
-                                                                        <span className="text-gray-700 truncate" style={{maxWidth: "70%"}}>{participant.name}</span>
-                                                                        {assessment.assessmentType !== 'survey' && (
-                                                                            <span className="font-medium">{participant.score}%</span>
-                                                                        )}
-                                                                    </div>
-                                                                ))
-                                                            }
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        
-                                        <div className="flex justify-between items-center mt-3">
-                                            {assessment.assessmentType === 'survey' ? (
+                                        {assessment.assessmentType === 'survey' ? (
+                                            // Survey-specific display: Just show count and actions
+                                            <div className="flex justify-between items-center mt-3">
                                                 <button 
                                                     // Use nameKey (lowercase) for filtering consistency
                                                     onClick={() => setCenterFilter(center.nameKey)} 
@@ -951,8 +932,58 @@ export default function AssessmentResponses() {
                                                 >
                                                     View Responses
                                                 </button>
-                                            ) : (
-                                                <>
+                                                <button 
+                                                    // Use nameKey (lowercase) for report generation consistency
+                                                    onClick={() => downloadCenterReport(center.nameKey)} 
+                                                    className="text-sm text-gray-600 hover:text-gray-800 flex items-center"
+                                                >
+                                                    <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
+                                                    Export
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            // Quiz-specific display: Show scores and performance
+                                            <>
+                                                <div className="space-y-2">
+                                                    <div className="flex justify-between items-center text-sm">
+                                                        <span className="text-gray-600">Average Score</span>
+                                                        <span className="font-medium">{center.avgScore}%</span>
+                                                    </div>
+                                                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className={`h-full rounded-full ${
+                                                                center.avgScore >= (assessment.passingScore || 70) 
+                                                                    ? 'bg-green-500' 
+                                                                    : 'bg-red-500'
+                                                            }`}
+                                                            style={{ width: `${center.avgScore}%` }}
+                                                        />
+                                                    </div>
+                                                    
+                                                    <div className="flex justify-between items-center text-sm mt-3">
+                                                        <span className="text-gray-600">Top Score</span>
+                                                        <span className="font-medium">{center.highestScore}%</span>
+                                                    </div>
+                                                    
+                                                    {center.participants.length > 0 && (
+                                                        <div className="mt-3 pt-3 border-t border-gray-100">
+                                                            <div className="text-xs text-gray-500 mb-1">Top Performers</div>
+                                                            <div className="max-h-24 overflow-y-auto">
+                                                                {center.participants
+                                                                    .sort((a, b) => b.score - a.score)
+                                                                    .slice(0, 3)
+                                                                    .map((participant, idx) => (
+                                                                        <div key={idx} className="flex justify-between text-sm py-1">
+                                                                            <span className="text-gray-700 truncate" style={{maxWidth: "70%"}}>{participant.name}</span>
+                                                                            <span className="font-medium">{participant.score}%</span>
+                                                                        </div>
+                                                                    ))
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex justify-between items-center mt-3">
                                                     <button 
                                                         // Use nameKey (lowercase) for filtering consistency
                                                         onClick={() => setCenterFilter(center.nameKey)} 
@@ -968,9 +999,10 @@ export default function AssessmentResponses() {
                                                         <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
                                                         Export
                                                     </button>
-                                                </>
-                                            )}
-                                        </div>
+                                                </div>
+                                            </>
+                                        )}
+                                        
                                     </div>
                                 );
                             })}
