@@ -12,10 +12,10 @@ import {
     BuildingOfficeIcon,
     ArrowUpIcon,
     ArrowDownIcon,
-    PencilIcon,
-    TrashIcon,
-    XMarkIcon,
-    ArrowPathIcon,
+    PencilIcon, // Add PencilIcon
+    TrashIcon,  // Add TrashIcon
+    XMarkIcon,  // Add XMarkIcon
+    ArrowPathIcon, // Add ArrowPathIcon for saving state
     PrinterIcon // Add PrinterIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
@@ -28,21 +28,36 @@ export default function AssessmentResponses() {
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
     const [centerFilter, setCenterFilter] = useState('');
     
-    // New state for managing responses
+    // New state for managing responses/results editing and deleting
     const [editResponseId, setEditResponseId] = useState(null);
-    const [editingResponse, setEditingResponse] = useState(null);
+    const [editingResponse, setEditingResponse] = useState(null); // Holds the response data being edited
     const [editResultId, setEditResultId] = useState(null);
-    const [editingResult, setEditingResult] = useState(null);
-    const [isEditing, setIsEditing] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
+    const [editingResult, setEditingResult] = useState(null); // Holds the result data being edited
+    const [isEditing, setIsEditing] = useState(false); // Controls edit modal visibility
+    const [isSaving, setIsSaving] = useState(false); // Loading state for save button
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-    const [deleteItemId, setDeleteItemId] = useState(null);
-    const [deleteItemType, setDeleteItemType] = useState(null);
-    const modalRef = useRef(null);
+    const [deleteItemId, setDeleteItemId] = useState(null); // ID of the response/result to delete
+    const [deleteItemType, setDeleteItemType] = useState(null); // 'response' or 'result'
+    const modalRef = useRef(null); // Ref for modal click outside
 
     useEffect(() => {
         fetchAssessment();
     }, [id]);
+
+    // Close modal if clicked outside
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (modalRef.current && !modalRef.current.contains(event.target)) {
+                setDeleteModalOpen(false);
+                // Optionally close edit modal too, if needed
+                // setIsEditing(false); 
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [modalRef]);
 
     // Sort function for responses/results
     const requestSort = (key) => {
@@ -232,6 +247,7 @@ export default function AssessmentResponses() {
             setAssessment(response.data);
         } catch (error) {
             console.error('Failed to fetch assessment:', error);
+            toast.error('Failed to load assessment data.'); // Add user feedback
         } finally {
             setLoading(false);
         }
@@ -401,6 +417,303 @@ export default function AssessmentResponses() {
         });
     }, [assessment, centerStats]);
 
+    // --- Edit/Delete Handlers ---
+
+    // Open Edit Modal for Survey Response
+    const handleEditResponse = (response) => {
+        setEditResponseId(response._id);
+        setEditingResponse({ ...response }); // Clone response data for editing
+        setEditResultId(null);
+        setEditingResult(null);
+        setIsEditing(true);
+    };
+
+    // Open Edit Modal for Quiz Result
+    const handleEditResult = (result) => {
+        setEditResultId(result._id);
+        // Ensure participant data is properly nested for editing
+        setEditingResult({ ...result, participant: { ...result.participant } }); 
+        setEditResponseId(null);
+        setEditingResponse(null);
+        setIsEditing(true);
+    };
+
+    // Handle changes in the edit form for Survey Response
+    const handleResponseChange = (field, value) => {
+        setEditingResponse(prev => ({ ...prev, [field]: value }));
+    };
+
+    // Handle changes in the edit form for Quiz Result (participant details)
+    const handleResultParticipantChange = (field, value) => {
+        setEditingResult(prev => ({
+            ...prev,
+            participant: { ...prev.participant, [field]: value }
+        }));
+    };
+
+    // Save changes for Survey Response
+    const saveResponseChanges = async () => {
+        if (!editResponseId || !editingResponse) return;
+        setIsSaving(true);
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            const response = await axios.put(
+                `${import.meta.env.VITE_API_URL}/api/assessment/${id}/responses/${editResponseId}`,
+                editingResponse, // Send the entire updated response object
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            // Update local state immediately for better UX
+            setAssessment(prev => ({
+                ...prev,
+                responses: prev.responses.map(r => 
+                    r._id === editResponseId ? response.data.response : r
+                )
+            }));
+
+            toast.success('Response updated successfully!');
+            setIsEditing(false);
+            setEditResponseId(null);
+            setEditingResponse(null);
+        } catch (error) {
+            console.error('Failed to update response:', error);
+            toast.error('Failed to update response. Please try again.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Save changes for Quiz Result
+    const saveResultChanges = async () => {
+        if (!editResultId || !editingResult) return;
+        setIsSaving(true);
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            // Only send the fields that can be updated (e.g., participant details)
+            const updatePayload = { participant: editingResult.participant }; 
+            
+            const response = await axios.put(
+                `${import.meta.env.VITE_API_URL}/api/assessment/${id}/results/${editResultId}`,
+                updatePayload,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            // Update local state immediately
+            setAssessment(prev => ({
+                ...prev,
+                results: prev.results.map(r => 
+                    r._id === editResultId ? response.data.result : r
+                )
+            }));
+
+            toast.success('Result updated successfully!');
+            setIsEditing(false);
+            setEditResultId(null);
+            setEditingResult(null);
+        } catch (error) {
+            console.error('Failed to update result:', error);
+            toast.error('Failed to update result. Please try again.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Open Delete Confirmation Modal
+    const confirmDelete = (itemId, itemType) => {
+        setDeleteItemId(itemId);
+        setDeleteItemType(itemType);
+        setDeleteModalOpen(true);
+    };
+
+    // Handle actual deletion
+    const handleDelete = async () => {
+        if (!deleteItemId || !deleteItemType) return;
+        
+        const endpoint = deleteItemType === 'response' 
+            ? `${import.meta.env.VITE_API_URL}/api/assessment/${id}/responses/${deleteItemId}`
+            : `${import.meta.env.VITE_API_URL}/api/assessment/${id}/results/${deleteItemId}`;
+            
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            await axios.delete(endpoint, { headers: { Authorization: `Bearer ${token}` } });
+
+            // Update local state immediately
+            setAssessment(prev => {
+                if (deleteItemType === 'response') {
+                    return { ...prev, responses: prev.responses.filter(r => r._id !== deleteItemId) };
+                } else {
+                    return { ...prev, results: prev.results.filter(r => r._id !== deleteItemId) };
+                }
+            });
+
+            toast.success(`${deleteItemType.charAt(0).toUpperCase() + deleteItemType.slice(1)} deleted successfully!`);
+            setDeleteModalOpen(false);
+            setDeleteItemId(null);
+            setDeleteItemType(null);
+        } catch (error) {
+            console.error(`Failed to delete ${deleteItemType}:`, error);
+            toast.error(`Failed to delete ${deleteItemType}. Please try again.`);
+            setDeleteModalOpen(false); // Close modal even on error
+        }
+    };
+
+    // --- CSV Export Functions ---
+
+    // Helper function to convert array of objects to CSV string
+    const convertToCSV = (data) => {
+        if (!data || data.length === 0) return '';
+        const headers = Object.keys(data[0]);
+        const csvRows = [
+            headers.join(','), // header row
+            ...data.map(row => 
+                headers.map(fieldName => 
+                    JSON.stringify(row[fieldName], (key, value) => value === null ? '' : value) // handle null values and quotes
+                ).join(',')
+            )
+        ];
+        return csvRows.join('\r\n');
+    };
+
+    // Helper function to trigger CSV download
+    const downloadCSV = (csvString, filename) => {
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        if (link.download !== undefined) { // Feature detection
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    };
+
+    // Function to download report for a specific center
+    const downloadCenterReport = (centerKey) => {
+        if (!assessment) return;
+        
+        const centerDisplayName = getStandardizedCenterName(centerKey);
+        const filename = `${assessment.title}_${centerDisplayName}_Report.csv`;
+        
+        let dataToExport = [];
+
+        if (assessment.assessmentType === 'survey') {
+            dataToExport = assessment.responses
+                .filter(r => normalizeCentreName(r.participantCentre) === centerKey)
+                .map(r => {
+                    const row = {
+                        Name: r.participantName,
+                        Email: r.participantEmail,
+                        Department: r.participantDepartment,
+                        Designation: r.participantDesignation,
+                        Centre: getStandardizedCenterName(r.participantCentre), // Use standardized name
+                        SubmittedAt: new Date(r.submittedAt).toLocaleString(),
+                    };
+                    assessment.questions.forEach((q, index) => {
+                        row[`Q${index + 1}_Response`] = r.responses[index]?.response || 'N/A';
+                        if (q.allowComments) {
+                            row[`Q${index + 1}_Comment`] = r.responses[index]?.comments || '';
+                        }
+                    });
+                    row['AdditionalFeedback'] = r.additionalFeedback || '';
+                    return row;
+                });
+        } else { // Quiz
+            dataToExport = assessment.results
+                .filter(r => normalizeCentreName(r.participant.centre) === centerKey)
+                .map(r => {
+                    const row = {
+                        Name: r.participant.name,
+                        Email: r.participant.email,
+                        Department: r.participant.department,
+                        Designation: r.participant.designation,
+                        Centre: getStandardizedCenterName(r.participant.centre), // Use standardized name
+                        Experience: r.participant.experience,
+                        CompletedAt: new Date(r.completedAt).toLocaleString(),
+                        TotalScore: `${r.totalScore}%`,
+                    };
+                    assessment.questions.forEach((q, index) => {
+                        row[`Q${index + 1}_Selected`] = assessment.questions[index].options[r.answers[index]?.selectedOption] || 'N/A';
+                        row[`Q${index + 1}_Correct`] = r.answers[index]?.isCorrect ? 'Yes' : 'No';
+                        row[`Q${index + 1}_Points`] = r.answers[index]?.points || 0;
+                    });
+                    return row;
+                });
+        }
+
+        if (dataToExport.length === 0) {
+            toast.error(`No data found for center: ${centerDisplayName}`);
+            return;
+        }
+
+        const csvString = convertToCSV(dataToExport);
+        downloadCSV(csvString, filename);
+        toast.success(`Report for ${centerDisplayName} downloaded.`);
+    };
+
+    // Function to download the overall report (all centers or filtered)
+    const downloadOverallReport = () => {
+        if (!assessment) return;
+
+        const filename = `${assessment.title}_${centerFilter ? getStandardizedCenterName(centerFilter) + '_' : ''}Overall_Report.csv`;
+        
+        let dataToExport = [];
+        const itemsToProcess = centerFilter 
+            ? sortedResponses // Use already filtered list if centerFilter is active
+            : (assessment.assessmentType === 'survey' ? assessment.responses : assessment.results);
+
+        if (assessment.assessmentType === 'survey') {
+            dataToExport = itemsToProcess.map(r => {
+                const row = {
+                    Name: r.participantName,
+                    Email: r.participantEmail,
+                    Department: r.participantDepartment,
+                    Designation: r.participantDesignation,
+                    Centre: getStandardizedCenterName(r.participantCentre),
+                    SubmittedAt: new Date(r.submittedAt).toLocaleString(),
+                };
+                assessment.questions.forEach((q, index) => {
+                    row[`Q${index + 1}_Response`] = r.responses[index]?.response || 'N/A';
+                    if (q.allowComments) {
+                        row[`Q${index + 1}_Comment`] = r.responses[index]?.comments || '';
+                    }
+                });
+                row['AdditionalFeedback'] = r.additionalFeedback || '';
+                return row;
+            });
+        } else { // Quiz
+            dataToExport = itemsToProcess.map(r => {
+                const row = {
+                    Name: r.participant.name,
+                    Email: r.participant.email,
+                    Department: r.participant.department,
+                    Designation: r.participant.designation,
+                    Centre: getStandardizedCenterName(r.participant.centre),
+                    Experience: r.participant.experience,
+                    CompletedAt: new Date(r.completedAt).toLocaleString(),
+                    TotalScore: `${r.totalScore}%`,
+                };
+                assessment.questions.forEach((q, index) => {
+                    row[`Q${index + 1}_Selected`] = assessment.questions[index].options[r.answers[index]?.selectedOption] || 'N/A';
+                    row[`Q${index + 1}_Correct`] = r.answers[index]?.isCorrect ? 'Yes' : 'No';
+                    row[`Q${index + 1}_Points`] = r.answers[index]?.points || 0;
+                });
+                return row;
+            });
+        }
+
+        if (dataToExport.length === 0) {
+            toast.error(`No data found${centerFilter ? ` for center: ${getStandardizedCenterName(centerFilter)}` : ''}.`);
+            return;
+        }
+
+        const csvString = convertToCSV(dataToExport);
+        downloadCSV(csvString, filename);
+        toast.success(`Overall report${centerFilter ? ` for ${getStandardizedCenterName(centerFilter)}` : ''} downloaded.`);
+    };
+
+
     // Function to handle printing the report
     const handlePrintReport = () => {
         // Add check to ensure assessment is loaded
@@ -441,8 +754,8 @@ export default function AssessmentResponses() {
                         margin: 1cm; /* Adjust margins */
                     }
                     body {
-                        -webkit-print-color-adjust: exact; /* Chrome, Safari */
-                        color-adjust: exact; /* Firefox */
+                        -webkit-print-color-adjust: exact !important; /* Chrome, Safari */
+                        color-adjust: exact !important; /* Firefox */
                         margin: 0;
                         padding: 0;
                         font-size: 9pt; /* Slightly smaller base font for print */
@@ -499,7 +812,7 @@ export default function AssessmentResponses() {
                         color: black !important; /* Ensure text is black */
                     }
                     /* Specific component adjustments */
-                    .h-5.bg-gray-200, .h-2.bg-gray-200, .h-1\.5.bg-gray-100 { /* Progress bars */
+                    .h-5.bg-gray-200, .h-2.bg-gray-200, .h-1\\.5.bg-gray-100 { /* Progress bars */
                         border: 1px solid #ccc;
                         background: white !important;
                         height: 8px !important; /* Consistent height */
@@ -545,10 +858,29 @@ export default function AssessmentResponses() {
 
             <Navigation className="print-hide" />
             <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-                {/* Page Title */}
-                <h1 className="text-3xl font-bold text-slate-900 mb-8 print:hidden">
-                    {assessment.title} - Responses 
-                </h1>
+                {/* Page Title & Actions */}
+                <div className="flex flex-wrap justify-between items-center mb-8 gap-4 print:hidden">
+                    <h1 className="text-3xl font-bold text-slate-900">
+                        {assessment.title} - Responses 
+                    </h1>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={downloadOverallReport}
+                            title={`Export ${centerFilter ? getStandardizedCenterName(centerFilter) + ' ' : ''}Report as CSV`}
+                            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                            <ArrowDownTrayIcon className="h-5 w-5 mr-2 text-gray-500" />
+                            Export CSV
+                        </button>
+                        <button
+                            onClick={handlePrintReport}
+                            className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                            <PrinterIcon className="h-5 w-5 mr-2" />
+                            Print Report
+                        </button>
+                    </div>
+                </div>
                 {/* Hidden Title for Printing */}
                 <h1 className="hidden print-title">
                     {assessment.title} - Responses Report
@@ -588,13 +920,13 @@ export default function AssessmentResponses() {
                     </div>
                 )}
 
-                {/* Edit Response Modal (add print-hide class) */}
+                {/* Edit Response/Result Modal (add print-hide class) */}
                 {isEditing && (editResponseId || editResultId) && (
                     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center print-hide">
                         <div className="relative mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
                             <div className="flex justify-between items-center border-b pb-3 mb-4">
                                 <h3 className="text-lg font-semibold text-gray-900">
-                                    Edit {editResponseId ? 'Response' : 'Result'}
+                                    Edit {editResponseId ? 'Response' : 'Result'} Details
                                 </h3>
                                 <button 
                                     onClick={() => {
@@ -610,9 +942,11 @@ export default function AssessmentResponses() {
                                 </button>
                             </div>
                             
+                            {/* Modal Content */}
                             <div className="max-h-[calc(100vh-200px)] overflow-y-auto py-2">
                                 {editResponseId && editingResponse && (
                                     <div className="space-y-4">
+                                        {/* Survey Response Edit Fields */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
@@ -620,7 +954,7 @@ export default function AssessmentResponses() {
                                                     type="text" 
                                                     value={editingResponse.participantName || ''} 
                                                     onChange={(e) => handleResponseChange('participantName', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                                 />
                                             </div>
                                             <div>
@@ -629,7 +963,7 @@ export default function AssessmentResponses() {
                                                     type="email" 
                                                     value={editingResponse.participantEmail || ''} 
                                                     onChange={(e) => handleResponseChange('participantEmail', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                                 />
                                             </div>
                                             <div>
@@ -638,7 +972,7 @@ export default function AssessmentResponses() {
                                                     type="text" 
                                                     value={editingResponse.participantDepartment || ''} 
                                                     onChange={(e) => handleResponseChange('participantDepartment', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                                 />
                                             </div>
                                             <div>
@@ -647,41 +981,45 @@ export default function AssessmentResponses() {
                                                     type="text" 
                                                     value={editingResponse.participantDesignation || ''} 
                                                     onChange={(e) => handleResponseChange('participantDesignation', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                                 />
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Centre</label>
-                                                <select
-                                                    value={editingResponse.participantCentre || ''}
+                                                {/* Consider making this a dropdown if centers are predefined */}
+                                                <input 
+                                                    type="text" 
+                                                    value={editingResponse.participantCentre || ''} 
                                                     onChange={(e) => handleResponseChange('participantCentre', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
-                                                >
-                                                    <option value="">Select Centre</option>
-                                                    <option value="delhi">Delhi</option>
-                                                    <option value="bengaluru">Bengaluru</option>
-                                                    <option value="mumbai">Mumbai</option>
-                                                    <option value="kolkatta">Kolkatta</option>
-                                                </select>
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="e.g., Delhi, Mumbai"
+                                                />
                                             </div>
                                         </div>
                                         
+                                        {/* Only show feedback if it exists */}
                                         {editingResponse.additionalFeedback !== undefined && (
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Additional Feedback</label>
                                                 <textarea 
                                                     value={editingResponse.additionalFeedback || ''} 
                                                     onChange={(e) => handleResponseChange('additionalFeedback', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                                     rows="3"
                                                 />
                                             </div>
                                         )}
+                                        {/* Display non-editable fields */}
+                                        <div className="mt-4 pt-4 border-t">
+                                            <p className="text-sm text-gray-500">Submitted: {new Date(editingResponse.submittedAt).toLocaleString()}</p>
+                                            {/* Add other non-editable info if needed */}
+                                        </div>
                                     </div>
                                 )}
 
                                 {editResultId && editingResult && (
                                     <div className="space-y-4">
+                                        {/* Quiz Result Edit Fields (Participant Details) */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
@@ -689,7 +1027,7 @@ export default function AssessmentResponses() {
                                                     type="text" 
                                                     value={editingResult.participant.name || ''} 
                                                     onChange={(e) => handleResultParticipantChange('name', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                                 />
                                             </div>
                                             <div>
@@ -698,7 +1036,7 @@ export default function AssessmentResponses() {
                                                     type="email" 
                                                     value={editingResult.participant.email || ''} 
                                                     onChange={(e) => handleResultParticipantChange('email', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                                 />
                                             </div>
                                             <div>
@@ -707,7 +1045,7 @@ export default function AssessmentResponses() {
                                                     type="text" 
                                                     value={editingResult.participant.department || ''} 
                                                     onChange={(e) => handleResultParticipantChange('department', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                                 />
                                             </div>
                                             <div>
@@ -716,46 +1054,46 @@ export default function AssessmentResponses() {
                                                     type="text" 
                                                     value={editingResult.participant.designation || ''} 
                                                     onChange={(e) => handleResultParticipantChange('designation', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                                 />
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Centre</label>
-                                                <select
-                                                    value={editingResult.participant.centre || ''}
+                                                {/* Consider making this a dropdown */}
+                                                <input 
+                                                    type="text" 
+                                                    value={editingResult.participant.centre || ''} 
                                                     onChange={(e) => handleResultParticipantChange('centre', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
-                                                >
-                                                    <option value="">Select Centre</option>
-                                                    <option value="delhi">Delhi</option>
-                                                    <option value="bengaluru">Bengaluru</option>
-                                                    <option value="mumbai">Mumbai</option>
-                                                    <option value="kolkatta">Kolkatta</option>
-                                                </select>
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="e.g., Delhi, Mumbai"
+                                                />
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Experience</label>
-                                                <select
-                                                    value={editingResult.participant.experience || ''}
+                                                {/* Consider making this a dropdown */}
+                                                <input 
+                                                    type="text" 
+                                                    value={editingResult.participant.experience || ''} 
                                                     onChange={(e) => handleResultParticipantChange('experience', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
-                                                >
-                                                    <option value="">Select Experience Level</option>
-                                                    <option value="beginner">Beginner</option>
-                                                    <option value="intermediate">Intermediate</option>
-                                                    <option value="advanced">Advanced</option>
-                                                    <option value="expert">Expert</option>
-                                                </select>
+                                                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="e.g., Beginner, Intermediate"
+                                                />
                                             </div>
                                         </div>
                                         
-                                        <div className="font-medium text-gray-700 mb-1">
-                                            Total Score: {editingResult.totalScore}%
+                                        {/* Display non-editable fields */}
+                                        <div className="mt-4 pt-4 border-t">
+                                            <p className="text-sm font-medium text-gray-700 mb-1">
+                                                Total Score: <span className="font-bold">{editingResult.totalScore}%</span>
+                                            </p>
+                                            <p className="text-sm text-gray-500">Completed: {new Date(editingResult.completedAt).toLocaleString()}</p>
+                                            {/* Add other non-editable info if needed */}
                                         </div>
                                     </div>
                                 )}
                             </div>
                             
+                            {/* Modal Actions */}
                             <div className="flex justify-end gap-3 mt-5 pt-4 border-t">
                                 <button 
                                     onClick={() => {
@@ -772,7 +1110,11 @@ export default function AssessmentResponses() {
                                 <button 
                                     onClick={editResponseId ? saveResponseChanges : saveResultChanges}
                                     disabled={isSaving}
-                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md flex items-center"
+                                    className={`px-4 py-2 text-white text-sm font-medium rounded-md flex items-center justify-center transition-colors ${
+                                        isSaving 
+                                            ? 'bg-blue-400 cursor-not-allowed' 
+                                            : 'bg-blue-600 hover:bg-blue-700'
+                                    }`}
                                 >
                                     {isSaving ? (
                                         <>
@@ -1092,7 +1434,7 @@ export default function AssessmentResponses() {
                                         <div className="w-24 flex-shrink-0 text-sm font-medium text-gray-700 text-right print:text-black">{stat.option}</div>
                                         <div className="flex-1">
                                             {/* Simplified bar for print */}
-                                            <div className="h-5 bg-gray-200 rounded-full overflow-hidden relative print:border print:border-gray-300 print:bg-white">
+                                            <div className="h-5 bg-gray-200 rounded-full overflow-hidden relative print:border print:border-gray-300 print:bg-white print:h-3">
                                                 <div
                                                     className={`h-full rounded-full transition-all duration-500 ease-out ${responseColors[stat.option] || 'bg-blue-600'} print:bg-gray-500`}
                                                     style={{ width: `${stat.percentage}%` }}
@@ -1277,6 +1619,7 @@ export default function AssessmentResponses() {
                                         {/* Refined Summary */}
                                         <summary className="flex justify-between items-center p-4 cursor-pointer hover:bg-gray-50 transition-colors list-none print:p-0 print:cursor-default print:border-b print:border-gray-200 print:pb-2 print:mb-2">
                                             <div className="flex items-start gap-3">
+                                                {/* ... existing participant info ... */}
                                                 <div>
                                                     <h3 className="text-base font-semibold text-slate-800">
                                                         {response.participantName}

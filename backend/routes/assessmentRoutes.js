@@ -371,34 +371,47 @@ router.get('/:id/analytics', protect, async (req, res) => {
 router.put('/:assessmentId/responses/:responseId', protect, async (req, res) => {
     try {
         const { assessmentId, responseId } = req.params;
-        const updateData = req.body;
+        // Only allow updating specific fields to prevent accidental overwrites
+        const { 
+            participantName, 
+            participantEmail, 
+            participantDepartment, 
+            participantDesignation, 
+            participantCentre,
+            additionalFeedback 
+        } = req.body;
         
         const assessment = await Assessment.findOne({ 
             _id: assessmentId,
-            creator: req.user._id
+            creator: req.user._id // Ensure the user owns the assessment
         });
 
         if (!assessment) {
-            return res.status(404).json({ message: 'Assessment not found' });
+            return res.status(404).json({ message: 'Assessment not found or not authorized' });
         }
 
-        // Find the response to update
-        const responseIndex = assessment.responses.findIndex(
-            response => response._id.toString() === responseId
-        );
+        // Find the response subdocument
+        const response = assessment.responses.id(responseId);
 
-        if (responseIndex === -1) {
+        if (!response) {
             return res.status(404).json({ message: 'Response not found' });
         }
 
-        // Update response fields
-        const updatedResponse = { ...assessment.responses[responseIndex].toObject(), ...updateData };
-        assessment.responses[responseIndex] = updatedResponse;
+        // Update allowed fields
+        if (participantName !== undefined) response.participantName = participantName;
+        if (participantEmail !== undefined) response.participantEmail = participantEmail;
+        if (participantDepartment !== undefined) response.participantDepartment = participantDepartment;
+        if (participantDesignation !== undefined) response.participantDesignation = participantDesignation;
+        if (participantCentre !== undefined) response.participantCentre = participantCentre;
+        if (additionalFeedback !== undefined) response.additionalFeedback = additionalFeedback;
+        
+        // Mark the array element as modified if necessary (sometimes needed for nested objects)
+        // assessment.markModified('responses'); 
 
-        await assessment.save();
+        await assessment.save(); // Save the parent document
         res.json({ 
             message: 'Response updated successfully',
-            response: assessment.responses[responseIndex] 
+            response // Return the updated subdocument
         });
     } catch (error) {
         console.error('Failed to update response:', error);
@@ -406,51 +419,51 @@ router.put('/:assessmentId/responses/:responseId', protect, async (req, res) => 
     }
 });
 
-// Update a quiz result
+// Update a quiz result (only participant details)
 router.put('/:assessmentId/results/:resultId', protect, async (req, res) => {
     try {
         const { assessmentId, resultId } = req.params;
-        const updateData = req.body;
+        // Only allow updating participant details
+        const { participant } = req.body; 
         
+        if (!participant) {
+            return res.status(400).json({ message: 'Participant data is required for update.' });
+        }
+
         const assessment = await Assessment.findOne({ 
             _id: assessmentId,
-            creator: req.user._id
+            creator: req.user._id // Ensure the user owns the assessment
         });
 
         if (!assessment) {
-            return res.status(404).json({ message: 'Assessment not found' });
+            return res.status(404).json({ message: 'Assessment not found or not authorized' });
         }
 
-        // Find the result to update
-        const resultIndex = assessment.results.findIndex(
-            result => result._id.toString() === resultId
-        );
+        // Find the result subdocument
+        const result = assessment.results.id(resultId);
 
-        if (resultIndex === -1) {
+        if (!result) {
             return res.status(404).json({ message: 'Result not found' });
         }
 
-        // Update result fields
-        if (updateData.participant) {
-            assessment.results[resultIndex].participant = {
-                ...assessment.results[resultIndex].participant,
-                ...updateData.participant
-            };
+        // Update participant fields selectively
+        const allowedParticipantFields = ['name', 'email', 'department', 'designation', 'centre', 'experience'];
+        for (const field of allowedParticipantFields) {
+            if (participant[field] !== undefined) {
+                result.participant[field] = participant[field];
+            }
         }
 
-        // Recalculate score if answers were modified
-        if (updateData.answers) {
-            assessment.results[resultIndex].answers = updateData.answers;
-            assessment.results[resultIndex].totalScore = calculateScore(
-                assessment.questions, 
-                updateData.answers
-            );
-        }
+        // Note: We are NOT recalculating the score here as only participant details are updated.
+        // If answers were editable, score recalculation would be needed.
 
-        await assessment.save();
+        // Mark the nested participant object as modified
+        // assessment.markModified('results'); // Usually needed for nested objects
+
+        await assessment.save(); // Save the parent document
         res.json({ 
             message: 'Result updated successfully',
-            result: assessment.results[resultIndex] 
+            result // Return the updated subdocument
         });
     } catch (error) {
         console.error('Failed to update result:', error);
@@ -465,19 +478,26 @@ router.delete('/:assessmentId/responses/:responseId', protect, async (req, res) 
         
         const assessment = await Assessment.findOne({ 
             _id: assessmentId,
-            creator: req.user._id
+            creator: req.user._id // Ensure the user owns the assessment
         });
 
         if (!assessment) {
-            return res.status(404).json({ message: 'Assessment not found' });
+            return res.status(404).json({ message: 'Assessment not found or not authorized' });
         }
 
-        // Remove the response
-        assessment.responses = assessment.responses.filter(
-            response => response._id.toString() !== responseId
-        );
+        // Find the response subdocument
+        const response = assessment.responses.id(responseId);
 
-        await assessment.save();
+        if (!response) {
+            // If already deleted or never existed, still return success or 404? 
+            // Returning 404 is probably better.
+            return res.status(404).json({ message: 'Response not found' });
+        }
+
+        // Remove the subdocument using Mongoose's built-in method
+        response.remove();
+
+        await assessment.save(); // Save the parent document
         res.json({ message: 'Response deleted successfully' });
     } catch (error) {
         console.error('Failed to delete response:', error);
@@ -492,21 +512,27 @@ router.delete('/:assessmentId/results/:resultId', protect, async (req, res) => {
         
         const assessment = await Assessment.findOne({ 
             _id: assessmentId,
-            creator: req.user._id
+            creator: req.user._id // Ensure the user owns the assessment
         });
 
         if (!assessment) {
-            return res.status(404).json({ message: 'Assessment not found' });
+            return res.status(404).json({ message: 'Assessment not found or not authorized' });
         }
 
-        // Remove the result
-        assessment.results = assessment.results.filter(
-            result => result._id.toString() !== resultId
-        );
+        // Find the result subdocument
+        const result = assessment.results.id(resultId);
 
-        await assessment.save();
+        if (!result) {
+            return res.status(404).json({ message: 'Result not found' });
+        }
+
+        // Remove the subdocument
+        result.remove();
+
+        await assessment.save(); // Save the parent document
         res.json({ message: 'Result deleted successfully' });
-    } catch (error) {        console.error('Failed to delete result:', error);
+    } catch (error) {        
+        console.error('Failed to delete result:', error);
         res.status(500).json({ message: 'Failed to delete result', error: error.message });
     }
 });
